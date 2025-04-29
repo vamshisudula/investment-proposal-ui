@@ -1,261 +1,242 @@
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { InvestmentProposal, ClientProfile, RiskAssessment, AssetAllocation, ProductRecommendation } from './types';
-import { formatIndianCurrency } from './utils';
+import { InvestmentProposal } from './types';
 
-export const generateProposalPDF = (proposal: InvestmentProposal): Promise<Blob> => {
+export async function generateProposalPDF(proposal: InvestmentProposal): Promise<Blob> {
   return new Promise((resolve) => {
-    const doc = new jsPDF();
+    const pdf = new jsPDF();
+    const pageWidth = pdf.internal.pageSize.getWidth();
     
-    // Add title
-    doc.setFontSize(20);
-    doc.setTextColor(0, 51, 102);
-    doc.text(proposal.title, 105, 20, { align: 'center' });
+    // Add the document title
+    pdf.setFontSize(20);
+    pdf.text(proposal.title, pageWidth / 2, 20, { align: 'center' });
     
-    // Add date and client information
-    doc.setFontSize(12);
-    doc.setTextColor(0, 0, 0);
-    doc.text(`Date: ${proposal.date}`, 20, 30);
-    doc.text(`Client: ${proposal.clientName}`, 20, 36);
-    doc.text(`Advisor: ${proposal.advisorName}`, 20, 42);
+    // Add date and client name
+    pdf.setFontSize(12);
+    pdf.text(`Date: ${proposal.date}`, 20, 30);
+    pdf.text(`Client: ${proposal.clientName}`, 20, 40);
+    pdf.text(`Advisor: ${proposal.advisorName}`, 20, 50);
+    
+    // Draw a separator line
+    pdf.setDrawColor(200, 200, 200);
+    pdf.line(20, 55, pageWidth - 20, 55);
     
     // Company Introduction
-    doc.setFontSize(16);
-    doc.setTextColor(0, 51, 102);
-    doc.text('Company Introduction', 20, 55);
-    doc.setFontSize(10);
-    doc.setTextColor(0, 0, 0);
-    const companyIntroLines = doc.splitTextToSize(proposal.companyIntro, 170);
-    doc.text(companyIntroLines, 20, 63);
+    pdf.setFontSize(16);
+    pdf.text('Company Introduction', 20, 70);
+    pdf.setFontSize(11);
+    const introLines = pdf.splitTextToSize(proposal.companyIntro, pageWidth - 40);
+    pdf.text(introLines, 20, 80);
     
     // Market Outlook
-    doc.setFontSize(16);
-    doc.setTextColor(0, 51, 102);
-    doc.text('Market Outlook', 20, 85);
-    doc.setFontSize(10);
-    doc.setTextColor(0, 0, 0);
-    const marketOutlookLines = doc.splitTextToSize(proposal.marketOutlook, 170);
-    doc.text(marketOutlookLines, 20, 93);
+    let yPos = 80 + (introLines.length * 7);
+    pdf.setFontSize(16);
+    pdf.text('Market Outlook', 20, yPos);
+    yPos += 10;
+    pdf.setFontSize(11);
+    const outlookLines = pdf.splitTextToSize(proposal.marketOutlook, pageWidth - 40);
+    pdf.text(outlookLines, 20, yPos);
+    
+    // Check if we need a new page for client profile
+    yPos += (outlookLines.length * 7) + 10;
+    if (yPos > 250) {
+      pdf.addPage();
+      yPos = 20;
+    }
     
     // Client Profile
-    doc.setFontSize(16);
-    doc.setTextColor(0, 51, 102);
-    doc.text('Client Profile', 20, 115);
-    addClientProfileTable(doc, proposal.clientProfile, 123);
+    pdf.setFontSize(16);
+    pdf.text('Client Profile', 20, yPos);
+    yPos += 10;
     
-    // Risk Assessment
-    doc.addPage();
-    doc.setFontSize(16);
-    doc.setTextColor(0, 51, 102);
-    doc.text('Risk Assessment', 20, 20);
-    addRiskAssessmentTable(doc, proposal.riskAssessment, 28);
+    // Personal details
+    pdf.setFontSize(14);
+    pdf.text('Personal Information', 20, yPos);
+    yPos += 10;
     
-    // Asset Allocation
-    doc.setFontSize(16);
-    doc.setTextColor(0, 51, 102);
-    doc.text('Asset Allocation', 20, 70);
-    addAssetAllocationTable(doc, proposal.assetAllocation, 78);
-    
-    // Product Recommendations
-    doc.addPage();
-    doc.setFontSize(16);
-    doc.setTextColor(0, 51, 102);
-    doc.text('Product Recommendations', 20, 20);
-    doc.setFontSize(10);
-    doc.setTextColor(0, 0, 0);
-    const recommendationSummaryLines = doc.splitTextToSize(proposal.productRecommendations.recommendationSummary, 170);
-    doc.text(recommendationSummaryLines, 20, 28);
-    
-    let yPos = 40;
-    Object.entries(proposal.productRecommendations.recommendations).forEach(([assetClass, productTypes]) => {
-      doc.setFontSize(14);
-      doc.setTextColor(0, 51, 102);
-      doc.text(assetClass.charAt(0).toUpperCase() + assetClass.slice(1), 20, yPos);
-      
-      yPos += 8;
-      Object.entries(productTypes).forEach(([typeName, products]) => {
-        doc.setFontSize(12);
-        doc.text(typeName, 25, yPos);
-        
-        yPos += 6;
-        if (products.length > 0) {
-          addProductRecommendationsTable(doc, products, yPos);
-          yPos += 10 + products.length * 10;
-        }
-      });
-      
-      if (yPos > 250) {
-        doc.addPage();
-        yPos = 20;
-      }
+    autoTable(pdf, {
+      startY: yPos,
+      head: [['Field', 'Value']],
+      body: [
+        ['Name', proposal.clientProfile.personal.name],
+        ['Age', proposal.clientProfile.personal.age.toString()],
+        ['Occupation', proposal.clientProfile.personal.occupation || 'Not Specified'],
+        ['Email', proposal.clientProfile.personal.email || 'Not Specified'],
+        ['Marital Status', proposal.clientProfile.personal.maritalStatus || 'Not Specified'],
+        ['Dependents', proposal.clientProfile.personal.dependents.toString()],
+      ],
+      margin: { left: 20 },
+      theme: 'striped',
+      headStyles: { fillColor: [41, 128, 185] },
     });
     
+    // Get the Y position after the table
+    yPos = (pdf as any).lastAutoTable.finalY + 10;
+    
+    // Financial details
+    pdf.setFontSize(14);
+    pdf.text('Financial Situation', 20, yPos);
+    yPos += 10;
+    
+    autoTable(pdf, {
+      startY: yPos,
+      head: [['Field', 'Value']],
+      body: [
+        ['Current Investments', `₹${proposal.clientProfile.financial.currentInvestments.toLocaleString()}`],
+        ['Liabilities', `₹${proposal.clientProfile.financial.liabilities.toLocaleString()}`],
+        ['Real Estate', `₹${proposal.clientProfile.financial.realEstate.toLocaleString()}`],
+        ['Savings', `₹${proposal.clientProfile.financial.savings.toLocaleString()}`],
+        ['Monthly Expenses', `₹${proposal.clientProfile.financial.monthlyExpenses.toLocaleString()}`],
+        ['Emergency Fund', proposal.clientProfile.financial.emergencyFund],
+        ['Existing Products', proposal.clientProfile.financial.existingProducts.join(', ')],
+      ],
+      margin: { left: 20 },
+      theme: 'striped',
+      headStyles: { fillColor: [41, 128, 185] },
+    });
+    
+    // Get the Y position after the table
+    yPos = (pdf as any).lastAutoTable.finalY + 10;
+    
+    // Check if we need a new page
+    if (yPos > 200) {
+      pdf.addPage();
+      yPos = 20;
+    }
+    
+    // Risk Assessment
+    pdf.setFontSize(16);
+    pdf.text('Risk Assessment', 20, yPos);
+    yPos += 10;
+    
+    pdf.setFontSize(12);
+    pdf.text(`Risk Score: ${proposal.riskAssessment.riskScore}/100 (${proposal.riskAssessment.riskCategory})`, 20, yPos);
+    yPos += 10;
+    
+    if (proposal.riskAssessment.details && proposal.riskAssessment.details.explanation) {
+      const riskLines = pdf.splitTextToSize(proposal.riskAssessment.details.explanation, pageWidth - 40);
+      pdf.text(riskLines, 20, yPos);
+      yPos += (riskLines.length * 7) + 10;
+    }
+    
+    // Asset Allocation
+    pdf.setFontSize(16);
+    pdf.text('Asset Allocation', 20, yPos);
+    yPos += 10;
+    
+    pdf.setFontSize(12);
+    pdf.text(`Portfolio Size: ₹${proposal.assetAllocation.portfolioSize.toLocaleString()}`, 20, yPos);
+    yPos += 10;
+    
+    // Add asset allocation table
+    const assetAllocationBody = [];
+    for (const [assetClass, percentage] of Object.entries(proposal.assetAllocation.assetClassAllocation)) {
+      assetAllocationBody.push([
+        assetClass.charAt(0).toUpperCase() + assetClass.slice(1),
+        `${percentage}%`,
+        `₹${Math.round(proposal.assetAllocation.portfolioSize * percentage / 100).toLocaleString()}`,
+      ]);
+    }
+    
+    autoTable(pdf, {
+      startY: yPos,
+      head: [['Asset Class', 'Allocation %', 'Amount (₹)']],
+      body: assetAllocationBody,
+      margin: { left: 20 },
+      theme: 'striped',
+      headStyles: { fillColor: [41, 128, 185] },
+    });
+    
+    // Get the Y position after the table
+    yPos = (pdf as any).lastAutoTable.finalY + 10;
+    
+    if (proposal.assetAllocation.rationale) {
+      const rationaleLines = pdf.splitTextToSize(proposal.assetAllocation.rationale, pageWidth - 40);
+      pdf.text(rationaleLines, 20, yPos);
+      yPos += (rationaleLines.length * 7) + 10;
+    }
+    
+    // Check if we need a new page for product recommendations
+    if (yPos > 200) {
+      pdf.addPage();
+      yPos = 20;
+    }
+    
+    // Product Recommendations
+    pdf.setFontSize(16);
+    pdf.text('Product Recommendations', 20, yPos);
+    yPos += 10;
+    
+    if (proposal.productRecommendations.recommendationSummary) {
+      const summaryLines = pdf.splitTextToSize(proposal.productRecommendations.recommendationSummary, pageWidth - 40);
+      pdf.setFontSize(11);
+      pdf.text(summaryLines, 20, yPos);
+      yPos += (summaryLines.length * 7) + 10;
+    }
+    
+    // Product recommendations by asset class
+    for (const [assetClass, productTypes] of Object.entries(proposal.productRecommendations.recommendations)) {
+      // Check if we need a new page
+      if (yPos > 230) {
+        pdf.addPage();
+        yPos = 20;
+      }
+      
+      pdf.setFontSize(14);
+      pdf.text(assetClass.charAt(0).toUpperCase() + assetClass.slice(1), 20, yPos);
+      yPos += 10;
+      
+      for (const [productType, products] of Object.entries(productTypes)) {
+        pdf.setFontSize(12);
+        pdf.text(productType, 30, yPos);
+        yPos += 7;
+        
+        const productData = products.map(product => [
+          product.name,
+          product.expectedReturn,
+          product.risk,
+          `₹${product.minInvestment.toLocaleString()}`,
+        ]);
+        
+        autoTable(pdf, {
+          startY: yPos,
+          head: [['Product', 'Expected Return', 'Risk', 'Min. Investment']],
+          body: productData,
+          margin: { left: 30 },
+          theme: 'striped',
+          headStyles: { fillColor: [41, 128, 185] },
+        });
+        
+        // Get the Y position after the table
+        yPos = (pdf as any).lastAutoTable.finalY + 10;
+      }
+    }
+    
     // Implementation Plan
-    doc.addPage();
-    doc.setFontSize(16);
-    doc.setTextColor(0, 51, 102);
-    doc.text('Implementation Plan', 20, 20);
-    doc.setFontSize(10);
-    doc.setTextColor(0, 0, 0);
-    const implementationPlanLines = doc.splitTextToSize(proposal.implementationPlan, 170);
-    doc.text(implementationPlanLines, 20, 28);
+    pdf.addPage();
+    pdf.setFontSize(16);
+    pdf.text('Implementation Plan', 20, 20);
+    pdf.setFontSize(11);
+    const implementationLines = pdf.splitTextToSize(proposal.implementationPlan, pageWidth - 40);
+    pdf.text(implementationLines, 20, 30);
     
     // Disclaimer
-    doc.setFontSize(16);
-    doc.setTextColor(0, 51, 102);
-    doc.text('Disclaimer', 20, 60);
-    doc.setFontSize(8);
-    doc.setTextColor(0, 0, 0);
-    const disclaimerLines = doc.splitTextToSize(proposal.disclaimer, 170);
-    doc.text(disclaimerLines, 20, 68);
+    let disclaimerY = 30 + (implementationLines.length * 7) + 20;
+    if (disclaimerY > 250) {
+      pdf.addPage();
+      disclaimerY = 20;
+    }
     
-    // Generate the PDF as a blob
-    const pdfBlob = doc.output('blob');
+    pdf.setFontSize(16);
+    pdf.text('Disclaimer', 20, disclaimerY);
+    disclaimerY += 10;
+    pdf.setFontSize(9);
+    const disclaimerLines = pdf.splitTextToSize(proposal.disclaimer, pageWidth - 40);
+    pdf.text(disclaimerLines, 20, disclaimerY);
+    
+    // Convert the PDF to a blob and resolve the promise
+    const pdfBlob = pdf.output('blob');
     resolve(pdfBlob);
   });
-};
-
-const addClientProfileTable = (doc: jsPDF, clientProfile: ClientProfile, yStart: number) => {
-  // Personal Information
-  autoTable(doc, {
-    startY: yStart,
-    head: [['Personal Information', '']],
-    body: [
-      ['Name', clientProfile.personal.name],
-      ['Age', clientProfile.personal.age.toString()],
-      ['Occupation', clientProfile.personal.occupation],
-      ['Email', clientProfile.personal.email],
-      ['Phone', clientProfile.personal.phone],
-      ['Marital Status', clientProfile.personal.maritalStatus],
-      ['Dependents', clientProfile.personal.dependents.toString()]
-    ],
-    theme: 'striped',
-    headStyles: { fillColor: [0, 51, 102] },
-  });
-  
-  // Financial Information
-  autoTable(doc, {
-    startY: doc.lastAutoTable.finalY + 10,
-    head: [['Financial Information', '']],
-    body: [
-      ['Current Investments', formatIndianCurrency(clientProfile.financial.currentInvestments)],
-      ['Liabilities', formatIndianCurrency(clientProfile.financial.liabilities)],
-      ['Real Estate', formatIndianCurrency(clientProfile.financial.realEstate)],
-      ['Savings', formatIndianCurrency(clientProfile.financial.savings)],
-      ['Monthly Expenses', formatIndianCurrency(clientProfile.financial.monthlyExpenses)],
-      ['Emergency Fund', clientProfile.financial.emergencyFund],
-      ['Existing Products', clientProfile.financial.existingProducts.join(', ')]
-    ],
-    theme: 'striped',
-    headStyles: { fillColor: [0, 51, 102] },
-  });
-  
-  // Investment Information
-  autoTable(doc, {
-    startY: doc.lastAutoTable.finalY + 10,
-    head: [['Investment Objectives', '']],
-    body: [
-      ['Primary Goals', clientProfile.investment.primaryGoals.join(', ')],
-      ['Investment Horizon', clientProfile.investment.horizon],
-      ['Investment Style', clientProfile.investment.style],
-      ['Initial Investment', formatIndianCurrency(clientProfile.investment.initialAmount)],
-      ['Regular Contribution', formatIndianCurrency(clientProfile.investment.regularContribution)]
-    ],
-    theme: 'striped',
-    headStyles: { fillColor: [0, 51, 102] },
-  });
-};
-
-const addRiskAssessmentTable = (doc: jsPDF, riskAssessment: RiskAssessment, yStart: number) => {
-  autoTable(doc, {
-    startY: yStart,
-    head: [['Risk Assessment Summary', '']],
-    body: [
-      ['Risk Score', riskAssessment.riskScore.toString()],
-      ['Risk Category', riskAssessment.riskCategory],
-      ['Age Impact', `${riskAssessment.details.ageImpact}%`],
-      ['Horizon Impact', `${riskAssessment.details.horizonImpact}%`],
-      ['Style Impact', `${riskAssessment.details.styleImpact}%`],
-      ['Tolerance Impact', `${riskAssessment.details.toleranceImpact}%`],
-      ['Explanation', riskAssessment.details.explanation]
-    ],
-    theme: 'striped',
-    headStyles: { fillColor: [0, 51, 102] },
-  });
-};
-
-const addAssetAllocationTable = (doc: jsPDF, assetAllocation: AssetAllocation, yStart: number) => {
-  // Overall Asset Allocation
-  const assetClassRows = Object.entries(assetAllocation.assetClassAllocation).map(([assetClass, percentage]) => {
-    const amount = (assetAllocation.portfolioSize * percentage) / 100;
-    return [
-      assetClass.charAt(0).toUpperCase() + assetClass.slice(1),
-      `${percentage}%`,
-      formatIndianCurrency(amount)
-    ];
-  });
-  
-  autoTable(doc, {
-    startY: yStart,
-    head: [['Asset Class', 'Percentage', 'Amount']],
-    body: assetClassRows,
-    theme: 'striped',
-    headStyles: { fillColor: [0, 51, 102] },
-  });
-  
-  // Product Type Allocations
-  let yPos = doc.lastAutoTable.finalY + 10;
-  
-  Object.entries(assetAllocation.productTypeAllocation).forEach(([assetClass, productTypes]) => {
-    if (Object.keys(productTypes).length > 0) {
-      doc.setFontSize(12);
-      doc.setTextColor(0, 51, 102);
-      doc.text(`${assetClass.charAt(0).toUpperCase() + assetClass.slice(1)} Breakdown`, 20, yPos);
-      
-      const productTypeRows = Object.entries(productTypes).map(([productType, percentage]) => {
-        const totalAssetClassPercentage = assetAllocation.assetClassAllocation[assetClass] || 0;
-        const percentageOfTotal = totalAssetClassPercentage * (percentage / 100);
-        const amount = (assetAllocation.portfolioSize * percentageOfTotal) / 100;
-        return [productType, `${percentage}%`, formatIndianCurrency(amount)];
-      });
-      
-      autoTable(doc, {
-        startY: yPos + 5,
-        head: [['Product Type', 'Percentage', 'Amount']],
-        body: productTypeRows,
-        theme: 'striped',
-        headStyles: { fillColor: [0, 102, 204] },
-      });
-      
-      yPos = doc.lastAutoTable.finalY + 10;
-    }
-  });
-};
-
-const addProductRecommendationsTable = (doc: jsPDF, products: ProductRecommendation[], yStart: number) => {
-  const rows = products.map(product => [
-    product.name,
-    product.expectedReturn,
-    product.risk,
-    product.lockIn,
-    formatIndianCurrency(product.minInvestment)
-  ]);
-  
-  autoTable(doc, {
-    startY: yStart,
-    head: [['Product', 'Expected Return', 'Risk', 'Lock-In', 'Min Investment']],
-    body: rows,
-    theme: 'striped',
-    headStyles: { fillColor: [0, 102, 204] },
-  });
-};
-
-export const downloadPDF = (pdfBlob: Blob, filename: string = 'investment-proposal.pdf'): void => {
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(pdfBlob);
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-};
+}

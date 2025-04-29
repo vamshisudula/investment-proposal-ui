@@ -1,4 +1,3 @@
-
 import { ClientProfile, RiskAssessment, AssetAllocation, ProductRecommendations, InvestmentProposal } from './types';
 import { generateProposalPDF } from './pdf-generator';
 
@@ -25,6 +24,11 @@ export const getClientProfile = async (profileData: ClientProfile): Promise<{ su
     // Fallback: Return the input data
     return { success: true, clientProfile: profileData };
   }
+};
+
+// Add the missing submitProfile function
+export const submitProfile = async (profileData: ClientProfile): Promise<{ success: boolean; clientProfile: ClientProfile }> => {
+  return getClientProfile(profileData);
 };
 
 export const getRiskAssessment = async (clientProfile: ClientProfile): Promise<{ success: boolean; riskAssessment: RiskAssessment }> => {
