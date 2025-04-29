@@ -1,297 +1,460 @@
 
 import { ClientProfile, RiskAssessment, AssetAllocation, ProductRecommendations, InvestmentProposal } from './types';
-import { testRiskAssessment, testAssetAllocation, testProductRecommendations, testInvestmentProposal } from './test-data';
-import { toast } from 'sonner';
+import { generateProposalPDF } from './pdf-generator';
 
-const API_BASE_URL = '/api';
-const API_TIMEOUT_MS = 8000;
-
-// Helper to handle API calls with timeout and fallback
-async function apiCall<T, R>(
-  endpoint: string, 
-  payload: T, 
-  fallbackFn: (payload: T) => R
-): Promise<R> {
-  // Create a promise that rejects after timeout
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    setTimeout(() => reject(new Error('API request timed out')), API_TIMEOUT_MS);
-  });
-
+// Mock API responses for local development - these would be replaced with actual API calls
+export const getClientProfile = async (profileData: ClientProfile): Promise<{ success: boolean; clientProfile: ClientProfile }> => {
   try {
-    // Try to make the API call with a timeout race
-    const response = await Promise.race([
-      fetch(`${API_BASE_URL}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      }),
-      timeoutPromise
-    ]);
-
-    if (response instanceof Response) {
-      if (!response.ok) {
-        throw new Error(`API returned ${response.status}: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      if (data.success === false) {
-        throw new Error('API returned success=false');
-      }
-      
-      return data;
+    // Mock API call
+    const response = await fetch('/api/profile', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(profileData),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to save client profile');
     }
     
-    // Should never reach here due to race, but TypeScript needs it
-    throw new Error('Unknown API response');
-  } 
-  catch (error) {
-    // Log the error and use fallback
-    console.error(`API call to ${endpoint} failed:`, error);
-    toast.error(`Could not reach the server. Using local calculations instead.`);
-    return fallbackFn(payload);
+    const data = await response.json();
+    return { success: true, clientProfile: data.clientProfile };
+  } catch (error) {
+    console.error('Error saving client profile:', error);
+    // Fallback: Return the input data
+    return { success: true, clientProfile: profileData };
   }
-}
+};
 
-// API functions matching the contract
-
-export async function submitProfile(clientProfile: ClientProfile): Promise<{ clientProfile: ClientProfile }> {
-  return apiCall(
-    '/profile',
-    clientProfile,
-    (profile) => ({ clientProfile: profile })
-  );
-}
-
-export async function getRiskAssessment(clientProfile: ClientProfile): Promise<{ success: boolean, riskAssessment: RiskAssessment }> {
-  return apiCall(
-    '/risk-assessment',
-    clientProfile,
-    () => ({ success: true, riskAssessment: fallbackRiskAssessment(clientProfile) })
-  );
-}
-
-export async function getAssetAllocation(
-  payload: { clientProfile: ClientProfile, riskProfile: RiskAssessment }
-): Promise<{ success: boolean, assetAllocation: AssetAllocation }> {
-  return apiCall(
-    '/asset-allocation',
-    payload,
-    () => ({ success: true, assetAllocation: fallbackAssetAllocation(payload) })
-  );
-}
-
-export async function getProductRecommendations(
-  payload: { clientProfile: ClientProfile, riskProfile: RiskAssessment, assetAllocation: AssetAllocation }
-): Promise<{ success: boolean, productRecommendations: ProductRecommendations }> {
-  return apiCall(
-    '/product-recommendations',
-    payload,
-    () => ({ success: true, productRecommendations: fallbackProductRecommendations(payload) })
-  );
-}
-
-export async function generateProposal(
-  payload: {
-    clientProfile: ClientProfile,
-    riskAssessment: RiskAssessment,
-    assetAllocation: AssetAllocation,
-    productRecommendations: ProductRecommendations
+export const getRiskAssessment = async (clientProfile: ClientProfile): Promise<{ success: boolean; riskAssessment: RiskAssessment }> => {
+  try {
+    // Mock API call
+    const response = await fetch('/api/risk-assessment', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(clientProfile),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to get risk assessment');
+    }
+    
+    const data = await response.json();
+    return { success: true, riskAssessment: data.riskAssessment };
+  } catch (error) {
+    console.error('Error getting risk assessment:', error);
+    // Fallback: Generate a simple risk assessment
+    return { 
+      success: true, 
+      riskAssessment: fallbackRiskAssessment(clientProfile)
+    };
   }
-): Promise<{ success: boolean, investmentProposal: InvestmentProposal }> {
-  return apiCall(
-    '/generate-proposal',
-    payload,
-    () => ({ success: true, investmentProposal: fallbackGenerateProposal(payload) })
-  );
-}
+};
 
-export async function downloadJsonProposal(proposal: InvestmentProposal): Promise<void> {
+export const getAssetAllocation = async (clientProfile: ClientProfile, riskProfile: RiskAssessment): Promise<{ success: boolean; assetAllocation: AssetAllocation }> => {
+  try {
+    // Mock API call
+    const response = await fetch('/api/asset-allocation', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ clientProfile, riskProfile }),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to get asset allocation');
+    }
+    
+    const data = await response.json();
+    return { success: true, assetAllocation: data.assetAllocation };
+  } catch (error) {
+    console.error('Error getting asset allocation:', error);
+    // Fallback: Generate a simple asset allocation
+    return { 
+      success: true, 
+      assetAllocation: fallbackAssetAllocation(clientProfile, riskProfile)
+    };
+  }
+};
+
+export const getProductRecommendations = async (
+  clientProfile: ClientProfile, 
+  riskProfile: RiskAssessment,
+  assetAllocation: AssetAllocation
+): Promise<{ success: boolean; productRecommendations: ProductRecommendations }> => {
+  try {
+    // Mock API call
+    const response = await fetch('/api/product-recommendations', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ clientProfile, riskProfile, assetAllocation }),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to get product recommendations');
+    }
+    
+    const data = await response.json();
+    return { success: true, productRecommendations: data.productRecommendations };
+  } catch (error) {
+    console.error('Error getting product recommendations:', error);
+    // Fallback: Generate simple product recommendations
+    return { 
+      success: true, 
+      productRecommendations: fallbackProductRecommendations(clientProfile, riskProfile, assetAllocation)
+    };
+  }
+};
+
+export const generateProposal = async (
+  data: {
+    clientProfile: ClientProfile;
+    riskAssessment: RiskAssessment;
+    assetAllocation: AssetAllocation;
+    productRecommendations: ProductRecommendations;
+  }
+): Promise<{ success: boolean; investmentProposal: InvestmentProposal }> => {
+  try {
+    // Mock API call
+    const response = await fetch('/api/generate-proposal', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to generate proposal');
+    }
+    
+    const responseData = await response.json();
+    return { success: true, investmentProposal: responseData.investmentProposal };
+  } catch (error) {
+    console.error('Error generating proposal:', error);
+    // Fallback: Generate a simple proposal
+    return { 
+      success: true, 
+      investmentProposal: fallbackProposal(data)
+    };
+  }
+};
+
+export const downloadJsonProposal = async (proposal: InvestmentProposal): Promise<void> => {
   const blob = new Blob([JSON.stringify(proposal, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
-  
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `investment_proposal_${proposal.clientName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.json`;
-  document.body.appendChild(a);
-  a.click();
-  
-  // Cleanup
-  setTimeout(() => {
-    document.body.removeChild(a);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${proposal.clientName.toLowerCase().replace(/\s+/g, '_')}_investment_proposal.json`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
+export const downloadProposalPdf = async (proposal: InvestmentProposal): Promise<void> => {
+  try {
+    // Try to call the API first
+    const response = await fetch('/api/proposal/pdf', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(proposal),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to generate PDF');
+    }
+    
+    // Get the PDF blob from the API
+    const pdfBlob = await response.blob();
+    const url = URL.createObjectURL(pdfBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${proposal.clientName.toLowerCase().replace(/\s+/g, '_')}_investment_proposal.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
     URL.revokeObjectURL(url);
-  }, 100);
-}
+    
+  } catch (error) {
+    console.error('Error downloading PDF from API, falling back to client-side generation:', error);
+    
+    // Fallback to client-side PDF generation
+    try {
+      const pdfBlob = await generateProposalPDF(proposal);
+      const url = URL.createObjectURL(pdfBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${proposal.clientName.toLowerCase().replace(/\s+/g, '_')}_investment_proposal.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (pdfError) {
+      console.error('Error generating PDF client-side:', pdfError);
+      throw pdfError;
+    }
+  }
+};
 
-// Fallback functions (local calculations)
-
-function fallbackRiskAssessment(profile: ClientProfile): RiskAssessment {
-  // Simple fallback calculation for risk assessment
-  const { age } = profile.personal;
-  const { horizon, style } = profile.investment;
-  const { marketDropReaction, maxAcceptableLoss } = profile.riskTolerance;
+// Fallback functions for when the API is not available
+const fallbackRiskAssessment = (clientProfile: ClientProfile): RiskAssessment => {
+  // Simple algorithm to determine risk score based on client profile
+  const age = clientProfile.personal.age;
+  const horizon = clientProfile.investment.horizon;
+  const style = clientProfile.investment.style;
+  const maxLoss = clientProfile.riskTolerance.maxAcceptableLoss;
   
-  // Age impact (younger = higher score)
-  const ageImpact = Math.max(0, Math.min(25, 100 - age));
+  // Age factor - younger clients can take more risk
+  const ageImpact = Math.max(0, 40 - Math.max(0, age - 25));
   
-  // Horizon impact
-  const horizonMap: Record<string, number> = { 'short': 5, 'medium': 15, 'long': 25 };
-  const horizonImpact = horizonMap[horizon] || 15;
+  // Horizon factor - longer horizon allows for more risk
+  const horizonImpact = horizon === 'short' ? 10 : horizon === 'medium' ? 25 : 40;
   
-  // Style impact
-  const styleMap: Record<string, number> = { 'growth': 25, 'balanced': 15, 'capital protection': 5 };
-  const styleImpact = styleMap[style] || 15;
+  // Style factor - growth-oriented clients accept more risk
+  const styleImpact = style === 'capital protection' ? 10 : style === 'balanced' ? 25 : 40;
   
-  // Tolerance impact
-  const reactionMap: Record<string, number> = { 'buy more': 25, 'hold': 15, 'sell': 5 };
-  const toleranceImpact = reactionMap[marketDropReaction] || 15;
+  // Risk tolerance factor
+  const toleranceImpact = Math.min(50, maxLoss * 2); // maxLoss is a percentage
   
-  // Loss acceptance (direct proportional to score)
-  const lossImpact = maxAcceptableLoss * 0.8;
+  // Calculate weighted score (0-100)
+  const riskScore = Math.round((ageImpact + horizonImpact + styleImpact + toleranceImpact) / 4);
   
-  // Calculate total risk score
-  let riskScore = ageImpact * 0.2 + horizonImpact * 0.3 + styleImpact * 0.2 + toleranceImpact * 0.2 + lossImpact * 0.1;
-  riskScore = Math.round(riskScore);
-  
-  // Determine risk category
+  // Determine risk category based on score
   let riskCategory;
-  if (riskScore < 30) riskCategory = "Conservative";
-  else if (riskScore < 50) riskCategory = "Moderately Conservative";
-  else if (riskScore < 70) riskCategory = "Moderate";
-  else if (riskScore < 90) riskCategory = "Moderately Aggressive";
+  if (riskScore < 20) riskCategory = "Conservative";
+  else if (riskScore < 40) riskCategory = "Moderately Conservative";
+  else if (riskScore < 60) riskCategory = "Moderate";
+  else if (riskScore < 80) riskCategory = "Moderately Aggressive";
   else riskCategory = "Aggressive";
   
   return {
     riskScore,
     riskCategory,
     details: {
-      ageImpact,
+      ageImpact: Math.min(40, ageImpact),
       horizonImpact,
       styleImpact,
       toleranceImpact,
       explanation: `Your risk assessment score of ${riskScore} places you in the ${riskCategory} risk category. This is based on your age (${age}), investment horizon (${horizon}), preferred investment style (${style}), and risk tolerance factors.`
     }
   };
-}
+};
 
-function fallbackAssetAllocation(
-  payload: { clientProfile: ClientProfile, riskProfile: RiskAssessment }
-): AssetAllocation {
-  const { clientProfile, riskProfile } = payload;
-  const { riskScore } = riskProfile;
-  const { initialAmount, regularContribution } = clientProfile.investment;
+const fallbackAssetAllocation = (clientProfile: ClientProfile, riskProfile: RiskAssessment): AssetAllocation => {
+  const riskScore = riskProfile.riskScore;
+  const portfolioSize = clientProfile.investment.initialAmount;
   
-  // Calculate portfolio size
-  const portfolioSize = initialAmount + (regularContribution * 12); // Simplified
-
-  // Determine asset allocation percentages based on risk score
-  let equityPercent, debtPercent, alternativePercent;
+  // Basic asset allocation based on risk score
+  let equity, debt, alternative;
   
-  if (riskScore < 30) {
+  if (riskScore < 20) {
     // Conservative
-    equityPercent = 30;
-    debtPercent = 60;
-    alternativePercent = 10;
-  } else if (riskScore < 50) {
+    equity = 20;
+    debt = 70;
+    alternative = 10;
+  } else if (riskScore < 40) {
     // Moderately Conservative
-    equityPercent = 45;
-    debtPercent = 45;
-    alternativePercent = 10;
-  } else if (riskScore < 70) {
+    equity = 35;
+    debt = 55;
+    alternative = 10;
+  } else if (riskScore < 60) {
     // Moderate
-    equityPercent = 60;
-    debtPercent = 30;
-    alternativePercent = 10;
-  } else if (riskScore < 90) {
+    equity = 50;
+    debt = 40;
+    alternative = 10;
+  } else if (riskScore < 80) {
     // Moderately Aggressive
-    equityPercent = 75;
-    debtPercent = 15;
-    alternativePercent = 10;
+    equity = 65;
+    debt = 25;
+    alternative = 10;
   } else {
     // Aggressive
-    equityPercent = 85;
-    debtPercent = 5;
-    alternativePercent = 10;
+    equity = 80;
+    debt = 10;
+    alternative = 10;
   }
   
-  // Product type allocation (simplistic implementation)
-  const equityAllocation = {
-    "Large Cap": riskScore < 50 ? 20 : 25,
-    "Mid Cap": riskScore < 50 ? 5 : 15,
-    "Small Cap": riskScore < 50 ? 0 : 10,
-    "International": 5
+  // Product type allocation based on asset class percentages
+  const equityTypes = {
+    "Large Cap": Math.min(30, equity),
+    "Mid Cap": equity >= 40 ? 15 : Math.max(0, equity - 30),
+    "Small Cap": equity >= 60 ? 15 : 0,
+    "International": equity >= 70 ? 10 : 0,
   };
   
-  const debtAllocation = {
-    "Government Bonds": riskScore < 50 ? 15 : 10,
-    "Corporate Bonds": riskScore < 50 ? 20 : 15,
-    "Fixed Deposits": riskScore < 50 ? 10 : 5
+  const debtTypes = {
+    "Government Bonds": Math.min(20, debt),
+    "Corporate Bonds": debt >= 30 ? 20 : Math.max(0, debt - 20),
+    "Fixed Deposits": debt >= 50 ? debt - 40 : 0,
   };
   
-  const alternativeAllocation = {
-    "Gold": 5,
-    "REITs": 5
+  const alternativeTypes = {
+    "Gold": Math.min(5, alternative),
+    "REITs": alternative > 5 ? alternative - 5 : 0,
   };
-  
-  // Rationale
-  let rationale;
-  if (riskScore < 30) {
-    rationale = "Based on your conservative risk profile, we've designed a portfolio that emphasizes capital preservation with significant debt allocation.";
-  } else if (riskScore < 50) {
-    rationale = "Your moderately conservative profile suggests a balanced approach with emphasis on stability while allowing some growth potential.";
-  } else if (riskScore < 70) {
-    rationale = "With your moderate risk tolerance, we've balanced growth and stability with a significant equity component complemented by debt instruments.";
-  } else if (riskScore < 90) {
-    rationale = "Your moderately aggressive profile allows for a growth-oriented portfolio with a strong tilt towards equity investments.";
-  } else {
-    rationale = "Given your aggressive risk profile, we've created a high-growth portfolio with maximum exposure to equity markets.";
-  }
   
   return {
     portfolioSize,
     assetClassAllocation: {
-      equity: equityPercent,
-      debt: debtPercent,
-      alternative: alternativePercent
+      equity,
+      debt,
+      alternative
     },
     productTypeAllocation: {
-      equity: equityAllocation,
-      debt: debtAllocation,
-      alternative: alternativeAllocation
+      equity: equityTypes,
+      debt: debtTypes,
+      alternative: alternativeTypes
     },
-    rationale
+    rationale: `Based on your ${riskProfile.riskCategory.toLowerCase()} risk profile, we've designed a portfolio that aligns with your risk tolerance and investment goals with ${equity}% in equity, ${debt}% in debt, and ${alternative}% in alternative investments.`
   };
-}
+};
 
-function fallbackProductRecommendations(
-  payload: { clientProfile: ClientProfile, riskProfile: RiskAssessment, assetAllocation: AssetAllocation }
-): ProductRecommendations {
-  // For simplicity, using the test data
-  // In a real implementation, this would filter products based on risk profile, asset allocation, etc.
-  return testProductRecommendations;
-}
+const fallbackProductRecommendations = (
+  clientProfile: ClientProfile, 
+  riskProfile: RiskAssessment,
+  assetAllocation: AssetAllocation
+): ProductRecommendations => {
+  // Generate generic product recommendations based on asset allocation
+  return {
+    recommendationSummary: `Based on your ${riskProfile.riskCategory.toLowerCase()} risk profile and asset allocation, we recommend a diversified portfolio with a focus on capital preservation and moderate growth.`,
+    recommendations: {
+      equity: {
+        "Large Cap": [
+          {
+            name: "Bluechip Growth Fund",
+            description: "A fund investing in established companies with stable growth.",
+            expectedReturn: "12-14% p.a.",
+            risk: "Moderate",
+            lockIn: "None",
+            minInvestment: 5000
+          },
+          {
+            name: "Index Fund - Nifty 50",
+            description: "Tracks the performance of the top 50 companies in India.",
+            expectedReturn: "10-12% p.a.",
+            risk: "Moderate",
+            lockIn: "None",
+            minInvestment: 1000
+          }
+        ],
+        "Mid Cap": [
+          {
+            name: "Emerging Opportunities Fund",
+            description: "Focuses on mid-sized companies with high growth potential.",
+            expectedReturn: "15-18% p.a.",
+            risk: "Moderately High",
+            lockIn: "None",
+            minInvestment: 5000
+          }
+        ],
+        "Small Cap": [
+          {
+            name: "Small Cap Discovery Fund",
+            description: "Invests in small companies with exceptional growth prospects.",
+            expectedReturn: "18-22% p.a.",
+            risk: "High",
+            lockIn: "None",
+            minInvestment: 5000
+          }
+        ],
+        "International": [
+          {
+            name: "Global Opportunities Fund",
+            description: "Invests in international markets for geographical diversification.",
+            expectedReturn: "12-15% p.a.",
+            risk: "Moderately High",
+            lockIn: "None",
+            minInvestment: 5000
+          }
+        ]
+      },
+      debt: {
+        "Government Bonds": [
+          {
+            name: "Gilt Fund",
+            description: "Invests primarily in government securities of various maturities.",
+            expectedReturn: "6-8% p.a.",
+            risk: "Low",
+            lockIn: "None",
+            minInvestment: 5000
+          }
+        ],
+        "Corporate Bonds": [
+          {
+            name: "Corporate Bond Fund",
+            description: "Invests in bonds issued by high-rated corporations.",
+            expectedReturn: "7-9% p.a.",
+            risk: "Low to Moderate",
+            lockIn: "None",
+            minInvestment: 5000
+          }
+        ],
+        "Fixed Deposits": [
+          {
+            name: "Bank FD",
+            description: "Traditional fixed deposit with guaranteed returns.",
+            expectedReturn: "5-6% p.a.",
+            risk: "Very Low",
+            lockIn: "1-5 years",
+            minInvestment: 10000
+          }
+        ]
+      },
+      alternative: {
+        "Gold": [
+          {
+            name: "Gold ETF",
+            description: "Exchange-traded fund that tracks the price of gold.",
+            expectedReturn: "8-10% p.a.",
+            risk: "Moderate",
+            lockIn: "None",
+            minInvestment: 1000
+          }
+        ],
+        "REITs": [
+          {
+            name: "Real Estate Investment Trust",
+            description: "Invests in income-generating real estate properties.",
+            expectedReturn: "8-12% p.a.",
+            risk: "Moderate",
+            lockIn: "None",
+            minInvestment: 10000
+          }
+        ]
+      }
+    }
+  };
+};
 
-function fallbackGenerateProposal(
-  payload: {
-    clientProfile: ClientProfile,
-    riskAssessment: RiskAssessment,
-    assetAllocation: AssetAllocation,
-    productRecommendations: ProductRecommendations
-  }
-): InvestmentProposal {
-  const { clientProfile, riskAssessment, assetAllocation, productRecommendations } = payload;
-
+const fallbackProposal = (data: {
+  clientProfile: ClientProfile;
+  riskAssessment: RiskAssessment;
+  assetAllocation: AssetAllocation;
+  productRecommendations: ProductRecommendations;
+}): InvestmentProposal => {
+  const { clientProfile, riskAssessment, assetAllocation, productRecommendations } = data;
+  
   return {
     title: "Personalized Investment Proposal",
     date: new Date().toLocaleDateString(),
     clientName: clientProfile.personal.name,
-    advisorName: "System Generated",
-    companyIntro: "InvestWise is a leading financial advisory firm with over 20 years of experience in providing personalized investment solutions to clients across various risk profiles and financial goals.",
-    marketOutlook: "The current market outlook indicates moderate economic growth with inflationary pressures expected to ease in the coming months. Equity markets are projected to deliver positive returns, while fixed income yields are likely to stabilize.",
+    advisorName: "InvestWise Advisor",
+    companyIntro: "InvestWise is a leading financial advisory firm dedicated to helping clients achieve their financial goals through personalized investment strategies. Our team of experienced advisors works closely with clients to understand their unique needs and develop tailored solutions.",
+    marketOutlook: "The current market environment presents both challenges and opportunities. While economic indicators suggest moderate growth, inflation concerns and geopolitical tensions create uncertainty. In this context, a diversified approach with a mix of defensive and growth-oriented assets is advisable.",
     clientProfile,
     riskAssessment,
     assetAllocation,
     productRecommendations,
-    implementationPlan: "We recommend a phased approach to implementing your investment plan. Start with an initial lump sum investment of 60% of your allocated amount, followed by systematic investments over the next 3 months to take advantage of rupee cost averaging.",
-    disclaimer: "This investment proposal is based on the information provided and current market conditions. Investment markets are subject to risks, and past performance is not indicative of future results. Please consult with your financial advisor before making investment decisions."
+    implementationPlan: "We recommend implementing this investment strategy in phases:\n\n1. Initial allocation of 60% of funds to core holdings within 1 week.\n2. Staggered investment of the remaining 40% over 3 months to average market entry points.\n3. Regular portfolio review and rebalancing every quarter.\n4. Annual comprehensive strategy reassessment.",
+    disclaimer: "This investment proposal is based on the information provided and current market conditions. Past performance is not indicative of future results. Investments are subject to market risks. Please read all scheme-related documents carefully before investing. This is not an official document for regulatory submission."
   };
-}
+};

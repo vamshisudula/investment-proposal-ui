@@ -7,9 +7,9 @@ import { PageTitle } from '@/components/PageTitle';
 import { StepNavigation } from '@/components/StepNavigation';
 import { useAppContext } from '@/context/AppContext';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { generateProposal, downloadJsonProposal } from '@/lib/api';
+import { generateProposal, downloadJsonProposal, downloadProposalPdf } from '@/lib/api';
 import { toast } from 'sonner';
-import { FileText, Download } from 'lucide-react';
+import { FileText, Download, FileType } from 'lucide-react';
 import { formatIndianCurrency } from '@/lib/utils';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 
@@ -19,6 +19,7 @@ export const ProposalPage = () => {
   const { state, dispatch, navigateToStep } = useAppContext();
   const { clientProfile, riskAssessment, assetAllocation, productRecommendations, investmentProposal } = state;
   const [loading, setLoading] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('company');
 
   useEffect(() => {
@@ -86,6 +87,20 @@ export const ProposalPage = () => {
       });
   };
 
+  // Handler for downloading the proposal as PDF
+  const handleDownloadPdf = async () => {
+    setPdfLoading(true);
+    try {
+      await downloadProposalPdf(investmentProposal);
+      toast.success('Proposal downloaded as PDF');
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+      toast.error('Failed to download PDF');
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
   // Prepare data for pie chart
   const pieData = Object.entries(assetAllocation.assetClassAllocation).map(([name, value]) => ({
     name: name.charAt(0).toUpperCase() + name.slice(1),
@@ -110,13 +125,27 @@ export const ProposalPage = () => {
             variant="outline"
             className="flex items-center gap-2"
             onClick={handleDownloadJson}
+            disabled={pdfLoading}
           >
-            <Download className="h-4 w-4" />
+            <FileType className="h-4 w-4" />
             Download JSON
           </Button>
-          <Button className="flex items-center gap-2">
-            <FileText className="h-4 w-4" />
-            Download PDF
+          <Button 
+            className="flex items-center gap-2" 
+            onClick={handleDownloadPdf}
+            disabled={pdfLoading}
+          >
+            {pdfLoading ? (
+              <>
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <Download className="h-4 w-4" />
+                Download PDF
+              </>
+            )}
           </Button>
         </div>
       </div>

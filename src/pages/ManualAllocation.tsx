@@ -12,18 +12,22 @@ import { StepNavigation } from '@/components/StepNavigation';
 import { useAppContext } from '@/context/AppContext';
 import { toast } from 'sonner';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
-import { Sliders, FileText } from 'lucide-react';
-import { downloadJsonProposal } from '@/lib/api';
+import { Sliders, FileText, Download, FileType } from 'lucide-react';
+import { downloadJsonProposal, downloadProposalPdf } from '@/lib/api';
 import { ClientProfile, RiskAssessment, AssetAllocation } from '@/lib/types';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28'];
 
 const validationSchema = z.object({
   name: z.string().min(2, 'Name is required'),
+  age: z.number().optional(),
+  occupation: z.string().optional(),
   equity: z.number().min(0, 'Equity must be at least 0').max(100, 'Equity must be at most 100'),
   debt: z.number().min(0, 'Debt must be at least 0').max(100, 'Debt must be at most 100'),
   alternative: z.number().min(0, 'Alternative must be at least 0').max(100, 'Alternative must be at most 100'),
   initialAmount: z.number().min(10000, 'Initial amount must be at least 10,000'),
+  regularContribution: z.number().min(0, 'Regular contribution must be at least 0').default(0),
+  investmentHorizon: z.enum(['short', 'medium', 'long']).default('medium'),
 }).refine(data => {
   const total = data.equity + data.debt + data.alternative;
   return Math.abs(total - 100) < 0.001; // Allow for floating point imprecision
@@ -41,15 +45,20 @@ export const ManualAllocationPage = () => {
     riskAssessment: RiskAssessment;
     assetAllocation: AssetAllocation;
   } | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   const form = useForm<FormData>({
     resolver: zodResolver(validationSchema),
     defaultValues: {
       name: '',
+      age: 30,
+      occupation: '',
       equity: 60,
       debt: 30,
       alternative: 10,
       initialAmount: 100000,
+      regularContribution: 0,
+      investmentHorizon: 'medium',
     },
   });
 
@@ -98,8 +107,8 @@ export const ManualAllocationPage = () => {
     const clientProfile: ClientProfile = {
       personal: {
         name: data.name,
-        age: 40, // Default values
-        occupation: '',
+        age: data.age || 40, // Default value if not provided
+        occupation: data.occupation || '',
         email: '',
         phone: '',
         maritalStatus: 'not specified',
@@ -116,10 +125,10 @@ export const ManualAllocationPage = () => {
       },
       investment: {
         primaryGoals: ['Manual Allocation'],
-        horizon: 'medium', // Default values
+        horizon: data.investmentHorizon,
         style: 'balanced',
         initialAmount: data.initialAmount,
-        regularContribution: 0,
+        regularContribution: data.regularContribution,
       },
       riskTolerance: {
         marketDropReaction: 'hold',
@@ -209,16 +218,56 @@ export const ManualAllocationPage = () => {
     }
 
     // Create a simple investment proposal
-    const proposal = {
+    const proposal = createProposal(generatedData);
+
+    downloadJsonProposal(proposal)
+      .then(() => {
+        toast.success('Proposal downloaded as JSON');
+      })
+      .catch((error) => {
+        console.error('Error downloading proposal:', error);
+        toast.error('Failed to download proposal');
+      });
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!generatedData) {
+      toast.error('Please generate an allocation first');
+      return;
+    }
+
+    setPdfLoading(true);
+    try {
+      // Create a simple investment proposal
+      const proposal = createProposal(generatedData);
+      
+      // Download the PDF
+      await downloadProposalPdf(proposal);
+      toast.success('Proposal downloaded as PDF');
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+      toast.error('Failed to download PDF');
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
+  // Helper function to create a proposal from generated data
+  const createProposal = (data: {
+    clientProfile: ClientProfile;
+    riskAssessment: RiskAssessment;
+    assetAllocation: AssetAllocation;
+  }) => {
+    return {
       title: "Manual Allocation Investment Proposal",
       date: new Date().toLocaleDateString(),
-      clientName: generatedData.clientProfile.personal.name,
+      clientName: data.clientProfile.personal.name,
       advisorName: "Manual Allocation Tool",
       companyIntro: "This proposal was generated using the Manual Allocation tool.",
       marketOutlook: "This is a simplified proposal based on your manually specified asset allocation.",
-      clientProfile: generatedData.clientProfile,
-      riskAssessment: generatedData.riskAssessment,
-      assetAllocation: generatedData.assetAllocation,
+      clientProfile: data.clientProfile,
+      riskAssessment: data.riskAssessment,
+      assetAllocation: data.assetAllocation,
       productRecommendations: {
         recommendationSummary: "These are generic recommendations based on your manual allocation.",
         recommendations: {
@@ -269,15 +318,6 @@ export const ManualAllocationPage = () => {
       implementationPlan: "Implement this allocation in a single transaction or gradually based on your comfort level.",
       disclaimer: "This is a simplified investment proposal based on manual allocation. It is not financial advice. Please consult with a financial advisor before making investment decisions."
     };
-
-    downloadJsonProposal(proposal)
-      .then(() => {
-        toast.success('Proposal downloaded as JSON');
-      })
-      .catch((error) => {
-        console.error('Error downloading proposal:', error);
-        toast.error('Failed to download proposal');
-      });
   };
 
   // Prepare data for pie chart
@@ -451,15 +491,36 @@ export const ManualAllocationPage = () => {
             <CardTitle>
               Allocation Preview
               {generatedData && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="ml-4 flex items-center gap-1"
-                  onClick={handleDownloadJson}
-                >
-                  <FileText className="h-4 w-4" />
-                  Export
-                </Button>
+                <div className="flex gap-2 ml-4">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="flex items-center gap-1"
+                    onClick={handleDownloadJson}
+                    disabled={pdfLoading}
+                  >
+                    <FileType className="h-4 w-4" />
+                    JSON
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="flex items-center gap-1"
+                    onClick={handleDownloadPdf}
+                    disabled={pdfLoading}
+                  >
+                    {pdfLoading ? (
+                      <>
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                      </>
+                    ) : (
+                      <>
+                        <Download className="h-4 w-4" />
+                        PDF
+                      </>
+                    )}
+                  </Button>
+                </div>
               )}
             </CardTitle>
             <CardDescription>
