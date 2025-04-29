@@ -1,4 +1,3 @@
-
 // Fix the function call to include all required parameters
 import { useEffect, useState } from 'react';
 import { useAppContext } from '@/context/AppContext';
@@ -105,7 +104,7 @@ export const AllocationPage = () => {
         <p>{state.assetAllocation.rationale}</p>
       </div>
 
-      <StepNavigation nextStep={4} previousStep={2} />
+      <StepNavigation nextStep={4} />
     </div>
   );
 };

@@ -1,15 +1,11 @@
-
 import { ClientProfile, RiskAssessment, AssetAllocation, ProductRecommendations, InvestmentProposal } from './types';
 import { generateProposalPDF } from './pdf-generator';
 
-// Define the API base URL
-const API_BASE_URL = 'https://investeduapi.vercel.app';
-
-// New API functions for the real external API
+// Mock API responses for local development - these would be replaced with actual API calls
 export const getClientProfile = async (profileData: ClientProfile): Promise<{ success: boolean; clientProfile: ClientProfile }> => {
   try {
-    // Call the external API
-    const response = await fetch(`${API_BASE_URL}/api/profile`, {
+    // Mock API call
+    const response = await fetch('/api/profile', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -22,23 +18,23 @@ export const getClientProfile = async (profileData: ClientProfile): Promise<{ su
     }
     
     const data = await response.json();
-    return data;
+    return { success: true, clientProfile: data.clientProfile };
   } catch (error) {
     console.error('Error saving client profile:', error);
-    // Fallback: Return the input data with success flag
+    // Fallback: Return the input data
     return { success: true, clientProfile: profileData };
   }
 };
 
-// Add the submitProfile function that matches the import in Profiling.tsx
+// Add the missing submitProfile function
 export const submitProfile = async (profileData: ClientProfile): Promise<{ success: boolean; clientProfile: ClientProfile }> => {
   return getClientProfile(profileData);
 };
 
 export const getRiskAssessment = async (clientProfile: ClientProfile): Promise<{ success: boolean; riskAssessment: RiskAssessment }> => {
   try {
-    // Call the external API
-    const response = await fetch(`${API_BASE_URL}/api/risk-assessment`, {
+    // Mock API call
+    const response = await fetch('/api/risk-assessment', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -51,7 +47,7 @@ export const getRiskAssessment = async (clientProfile: ClientProfile): Promise<{
     }
     
     const data = await response.json();
-    return data;
+    return { success: true, riskAssessment: data.riskAssessment };
   } catch (error) {
     console.error('Error getting risk assessment:', error);
     // Fallback: Generate a simple risk assessment
@@ -64,8 +60,8 @@ export const getRiskAssessment = async (clientProfile: ClientProfile): Promise<{
 
 export const getAssetAllocation = async (clientProfile: ClientProfile, riskProfile: RiskAssessment): Promise<{ success: boolean; assetAllocation: AssetAllocation }> => {
   try {
-    // Call the external API
-    const response = await fetch(`${API_BASE_URL}/api/asset-allocation`, {
+    // Mock API call
+    const response = await fetch('/api/asset-allocation', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -78,7 +74,7 @@ export const getAssetAllocation = async (clientProfile: ClientProfile, riskProfi
     }
     
     const data = await response.json();
-    return data;
+    return { success: true, assetAllocation: data.assetAllocation };
   } catch (error) {
     console.error('Error getting asset allocation:', error);
     // Fallback: Generate a simple asset allocation
@@ -95,8 +91,8 @@ export const getProductRecommendations = async (
   assetAllocation: AssetAllocation
 ): Promise<{ success: boolean; productRecommendations: ProductRecommendations }> => {
   try {
-    // Call the external API
-    const response = await fetch(`${API_BASE_URL}/api/product-recommendations`, {
+    // Mock API call
+    const response = await fetch('/api/product-recommendations', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -109,7 +105,7 @@ export const getProductRecommendations = async (
     }
     
     const data = await response.json();
-    return data;
+    return { success: true, productRecommendations: data.productRecommendations };
   } catch (error) {
     console.error('Error getting product recommendations:', error);
     // Fallback: Generate simple product recommendations
@@ -129,8 +125,8 @@ export const generateProposal = async (
   }
 ): Promise<{ success: boolean; investmentProposal: InvestmentProposal }> => {
   try {
-    // Call the external API
-    const response = await fetch(`${API_BASE_URL}/api/generate-proposal`, {
+    // Mock API call
+    const response = await fetch('/api/generate-proposal', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -143,7 +139,7 @@ export const generateProposal = async (
     }
     
     const responseData = await response.json();
-    return responseData;
+    return { success: true, investmentProposal: responseData.investmentProposal };
   } catch (error) {
     console.error('Error generating proposal:', error);
     // Fallback: Generate a simple proposal
@@ -169,7 +165,7 @@ export const downloadJsonProposal = async (proposal: InvestmentProposal): Promis
 export const downloadProposalPdf = async (proposal: InvestmentProposal): Promise<void> => {
   try {
     // Try to call the API first
-    const response = await fetch(`${API_BASE_URL}/api/generate-proposal-pdf`, {
+    const response = await fetch('/api/proposal/pdf', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

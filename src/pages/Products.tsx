@@ -1,4 +1,3 @@
-
 // Fix the function call to include all required parameters
 import { useEffect, useState } from 'react';
 import { useAppContext } from '@/context/AppContext';
@@ -98,7 +97,7 @@ export const ProductsPage = () => {
           ))}
 
           <StepNavigation
-            previousStep={3}
+            prevStep={3}
             nextStep={5}
             buttonText="Generate Investment Proposal"
           />
