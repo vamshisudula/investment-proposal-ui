@@ -16,7 +16,7 @@ import { Sliders, FileText, Download, FileType } from 'lucide-react';
 import { downloadJsonProposal, downloadProposalPdf } from '@/lib/api';
 import { ClientProfile, RiskAssessment, AssetAllocation } from '@/lib/types';
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28'];
+const COLORS = ['#0088FE', '#00C49F'];
 
 const validationSchema = z.object({
   name: z.string().min(2, 'Name is required'),
@@ -24,12 +24,11 @@ const validationSchema = z.object({
   occupation: z.string().optional(),
   equity: z.number().min(0, 'Equity must be at least 0').max(100, 'Equity must be at most 100'),
   debt: z.number().min(0, 'Debt must be at least 0').max(100, 'Debt must be at most 100'),
-  alternative: z.number().min(0, 'Alternative must be at least 0').max(100, 'Alternative must be at most 100'),
   initialAmount: z.number().min(10000, 'Initial amount must be at least 10,000'),
   regularContribution: z.number().min(0, 'Regular contribution must be at least 0').default(0),
   investmentHorizon: z.enum(['short', 'medium', 'long']).default('medium'),
 }).refine(data => {
-  const total = data.equity + data.debt + data.alternative;
+  const total = data.equity + data.debt;
   return Math.abs(total - 100) < 0.001; // Allow for floating point imprecision
 }, {
   message: 'Allocations must sum to 100%',
@@ -53,9 +52,8 @@ export const ManualAllocationPage = () => {
       name: '',
       age: 30,
       occupation: '',
-      equity: 60,
+      equity: 70,
       debt: 30,
-      alternative: 10,
       initialAmount: 100000,
       regularContribution: 0,
       investmentHorizon: 'medium',
@@ -63,43 +61,11 @@ export const ManualAllocationPage = () => {
   });
 
   const onValueChange = (field: keyof FormData, value: number) => {
-    // Calculate the total of all fields except the one being changed
-    const currentValues = form.getValues();
-    const currentField = currentValues[field];
-    
     // Don't update if the value is invalid
     if (value < 0 || value > 100) return;
     
-    const otherFieldsTotal = 100 - value;
-    
-    // If changed to 100%, set others to 0
-    if (value === 100) {
-      const otherFields = ['equity', 'debt', 'alternative'].filter(f => f !== field) as Array<'equity' | 'debt' | 'alternative'>;
-      otherFields.forEach(f => form.setValue(f, 0));
-      form.setValue(field, value);
-      return;
-    }
-    
-    // If illegal, don't update
-    if (otherFieldsTotal < 0) return;
-    
+    // Set the value for the current field
     form.setValue(field, value);
-    
-    // Adjust other values proportionally
-    const otherFields = ['equity', 'debt', 'alternative'].filter(f => f !== field) as Array<'equity' | 'debt' | 'alternative'>;
-    const otherFieldsCurrentTotal = otherFields.reduce((sum, f) => sum + currentValues[f], 0);
-    
-    if (otherFieldsCurrentTotal === 0) {
-      // If other fields are 0, distribute evenly
-      const perField = otherFieldsTotal / otherFields.length;
-      otherFields.forEach(f => form.setValue(f, perField));
-    } else {
-      // Distribute proportionally
-      otherFields.forEach(f => {
-        const proportion = currentValues[f] / otherFieldsCurrentTotal;
-        form.setValue(f, Math.round(otherFieldsTotal * proportion * 100) / 100);
-      });
-    }
   };
 
   const onSubmit = async (data: FormData) => {
@@ -140,21 +106,19 @@ export const ManualAllocationPage = () => {
 
     // Create a simplified risk assessment based on allocation
     // More equity = higher risk
-    const equityWeight = 0.7;
-    const debtWeight = 0.2;
-    const alternativeWeight = 0.1;
-    const riskScore = Math.round(
-      data.equity * equityWeight + 
-      data.debt * debtWeight + 
-      data.alternative * alternativeWeight
-    );
+    const equityPercentage = data.equity;
+    const riskScore = Math.round(equityPercentage / 10);
 
-    let riskCategory;
-    if (riskScore < 30) riskCategory = "Conservative";
-    else if (riskScore < 50) riskCategory = "Moderately Conservative";
-    else if (riskScore < 70) riskCategory = "Moderate";
-    else if (riskScore < 90) riskCategory = "Moderately Aggressive";
-    else riskCategory = "Aggressive";
+    let riskCategory = 'Moderate';
+    if (riskScore >= 8) {
+      riskCategory = 'Aggressive';
+    } else if (riskScore >= 6) {
+      riskCategory = 'Moderate';
+    } else if (riskScore >= 4) {
+      riskCategory = 'Conservative';
+    } else {
+      riskCategory = 'Very Conservative';
+    }
 
     const riskAssessment: RiskAssessment = {
       riskScore,
@@ -164,37 +128,101 @@ export const ManualAllocationPage = () => {
         horizonImpact: 15,
         styleImpact: 15,
         toleranceImpact: 15,
-        explanation: `This is a manually created risk profile based on your selected allocation of ${data.equity}% equity, ${data.debt}% debt, and ${data.alternative}% alternatives.`,
+        explanation: `Based on your allocation of ${data.equity}% to equity and ${data.debt}% to debt, your risk profile is ${riskCategory}.`,
       },
     };
 
-    // Create asset allocation from user input
-    const assetAllocation: AssetAllocation = {
-      portfolioSize: data.initialAmount,
-      assetClassAllocation: {
-        equity: data.equity,
-        debt: data.debt,
-        alternative: data.alternative,
-      },
-      productTypeAllocation: {
-        equity: {
-          "Large Cap": data.equity >= 30 ? 25 : data.equity,
-          "Mid Cap": data.equity >= 50 ? 15 : 0,
-          "Small Cap": data.equity >= 70 ? 10 : 0,
-          "International": data.equity >= 80 ? 10 : 0,
+    // Create asset allocation from user input but send it to the backend API
+    // to ensure it follows our allocation rules
+    try {
+      // Prepare data for the manual allocation API
+      const apiData = {
+        clientProfile: {
+          personalInfo: {
+            name: data.name,
+            age: data.age || 40,
+            occupation: data.occupation || '',
+            email: '',
+            phone: '',
+          },
+          investmentObjectives: {
+            initialInvestmentAmount: data.initialAmount,
+            regularContributionAmount: data.regularContribution,
+            investmentHorizon: data.investmentHorizon === 'short' ? 5 : 
+                              data.investmentHorizon === 'medium' ? 15 : 25,
+            primaryGoals: ['Manual Allocation'],
+          }
         },
-        debt: {
-          "Government Bonds": Math.min(10, data.debt),
-          "Corporate Bonds": data.debt > 10 ? Math.min(15, data.debt - 10) : 0,
-          "Fixed Deposits": data.debt > 25 ? Math.min(5, data.debt - 25) : 0,
+        assetAllocation: {
+          assetClassAllocation: {
+            equity: data.equity,
+            debt: data.debt
+          }
+        }
+      };
+
+      // Call the manual allocation API
+      const response = await fetch('http://localhost:5000/api/manual-allocation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-        alternative: {
-          "Gold": Math.min(5, data.alternative),
-          "REITs": data.alternative > 5 ? Math.min(5, data.alternative - 5) : 0,
+        body: JSON.stringify(apiData),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status}`);
+      }
+
+      const apiResponse = await response.json();
+      console.log('Manual allocation API response:', apiResponse);
+
+      // Transform the API response to match our frontend format
+      const assetAllocation: AssetAllocation = {
+        portfolioSize: data.initialAmount,
+        assetClassAllocation: {
+          equity: apiResponse.assetAllocation.assetClassAllocation.equity,
+          debt: apiResponse.assetAllocation.assetClassAllocation.debt
         },
-      },
-      rationale: `This is a manually created allocation with ${data.equity}% equity, ${data.debt}% debt, and ${data.alternative}% alternatives.`,
-    };
+        productTypeAllocation: apiResponse.assetAllocation.productTypeAllocation || {
+          equity: {
+            "Large Cap": Math.round(data.equity * 0.5),
+            "Mid Cap": Math.round(data.equity * 0.3),
+            "Small Cap": Math.round(data.equity * 0.2)
+          },
+          debt: {
+            "Government Bonds": Math.round(data.debt * 0.5),
+            "Corporate Bonds": Math.round(data.debt * 0.5)
+          }
+        },
+        rationale: apiResponse.assetAllocation.allocationExplanation || 
+                  `This is a manually created allocation with ${data.equity}% equity and ${data.debt}% debt.`,
+      };
+    } catch (error) {
+      console.error('Error calling manual allocation API:', error);
+      toast.error('Failed to generate allocation. Using fallback values.');
+      
+      // Create the asset allocation object
+      const assetAllocation: AssetAllocation = {
+        portfolioSize: data.initialAmount,
+        assetClassAllocation: {
+          equity: data.equity,
+          debt: data.debt,
+        },
+        productTypeAllocation: {
+          equity: {
+            "Large Cap": Math.round(data.equity * 0.5),
+            "Mid Cap": Math.round(data.equity * 0.3),
+            "Small Cap": Math.round(data.equity * 0.2)
+          },
+          debt: {
+            "Government Bonds": Math.round(data.debt * 0.5),
+            "Corporate Bonds": Math.round(data.debt * 0.5)
+          }
+        },
+        rationale: `This is a manually created allocation with ${data.equity}% equity and ${data.debt}% debt.`,
+      };
+    }
 
     // Save the generated data
     setGeneratedData({
@@ -299,19 +327,6 @@ export const ManualAllocationPage = () => {
             ],
             "Corporate Bonds": [],
             "Fixed Deposits": []
-          },
-          alternative: {
-            "Gold": [
-              {
-                name: "Gold ETF",
-                description: "Tracks gold prices",
-                expectedReturn: "8-10% p.a.",
-                risk: "Moderate",
-                lockIn: "None",
-                minInvestment: 1000
-              }
-            ],
-            "REITs": []
           }
         }
       },
@@ -320,15 +335,14 @@ export const ManualAllocationPage = () => {
     };
   };
 
-  // Prepare data for pie chart
+  // Create pie chart data from form values
   const pieData = [
     { name: 'Equity', value: form.watch('equity') },
     { name: 'Debt', value: form.watch('debt') },
-    { name: 'Alternative', value: form.watch('alternative') },
   ];
 
-  // Total of allocations
-  const total = pieData.reduce((sum, item) => sum + item.value, 0);
+  // Calculate total allocation percentage for validation
+  const total = form.watch('equity') + form.watch('debt');
   const isValidTotal = Math.abs(total - 100) < 0.001;
 
   return (
@@ -344,7 +358,7 @@ export const ManualAllocationPage = () => {
           <CardHeader>
             <CardTitle>Create Manual Allocation</CardTitle>
             <CardDescription>
-              Adjust the sliders to set your preferred asset allocation. The total must equal 100%.
+              Enter percentages for your preferred asset allocation. The total must equal 100%.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -392,19 +406,18 @@ export const ManualAllocationPage = () => {
                     render={({ field }) => (
                       <FormItem>
                         <div className="flex justify-between items-center">
-                          <FormLabel>Equity</FormLabel>
-                          <span className="text-sm font-medium">{field.value}%</span>
+                          <FormLabel>Equity (%)</FormLabel>
                         </div>
                         <FormControl>
                           <Input 
-                            type="range"
+                            type="number"
                             min={0}
                             max={100}
                             step={1}
-                            className="w-full"
+                            placeholder="Enter equity percentage"
                             {...field}
                             onChange={(e) => {
-                              onValueChange('equity', parseInt(e.target.value, 10));
+                              onValueChange('equity', parseFloat(e.target.value) || 0);
                             }}
                           />
                         </FormControl>
@@ -419,46 +432,18 @@ export const ManualAllocationPage = () => {
                     render={({ field }) => (
                       <FormItem>
                         <div className="flex justify-between items-center">
-                          <FormLabel>Debt</FormLabel>
-                          <span className="text-sm font-medium">{field.value}%</span>
+                          <FormLabel>Debt (%)</FormLabel>
                         </div>
                         <FormControl>
                           <Input 
-                            type="range"
+                            type="number"
                             min={0}
                             max={100}
                             step={1}
-                            className="w-full"
+                            placeholder="Enter debt percentage"
                             {...field}
                             onChange={(e) => {
-                              onValueChange('debt', parseInt(e.target.value, 10));
-                            }}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={form.control}
-                    name="alternative"
-                    render={({ field }) => (
-                      <FormItem>
-                        <div className="flex justify-between items-center">
-                          <FormLabel>Alternative</FormLabel>
-                          <span className="text-sm font-medium">{field.value}%</span>
-                        </div>
-                        <FormControl>
-                          <Input 
-                            type="range"
-                            min={0}
-                            max={100}
-                            step={1}
-                            className="w-full"
-                            {...field}
-                            onChange={(e) => {
-                              onValueChange('alternative', parseInt(e.target.value, 10));
+                              onValueChange('debt', parseFloat(e.target.value) || 0);
                             }}
                           />
                         </FormControl>

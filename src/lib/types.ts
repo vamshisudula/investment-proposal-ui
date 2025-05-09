@@ -30,6 +30,7 @@ export interface ClientProfile {
     returnsVsStability: string;
     preferredStyle: string;
     maxAcceptableLoss: number;
+    investmentKnowledge?: string; // Added as optional property
   };
 }
 
@@ -51,7 +52,6 @@ export interface AssetAllocation {
   productTypeAllocation: {
     equity: Record<string, number>;
     debt: Record<string, number>;
-    alternative: Record<string, number>;
   };
   rationale: string;
 }
@@ -61,16 +61,33 @@ export interface ProductRecommendation {
   description: string;
   expectedReturn: string;
   risk: string;
-  lockIn: string;
-  minInvestment: number;
+  lockIn?: string;
+  lockInPeriod?: string;
+  minInvestment?: number;
+  minimumInvestment?: string;
+  // Additional fields from API
+  amcCode?: string;
+  schemeCode?: string;
+  nav?: string;
+  rating?: number;
+  category?: string;
+  schemeType?: string;
+  returns?: Record<string, string | number>;
+}
+
+export interface ProductCategory {
+  products: ProductRecommendation[];
+  allocation: number;
+  amount?: number;
 }
 
 export interface ProductRecommendations {
   recommendationSummary: string;
   recommendations: {
-    equity: Record<string, ProductRecommendation[]>;
-    debt: Record<string, ProductRecommendation[]>;
-    alternative: Record<string, ProductRecommendation[]>;
+    equity: Record<string, ProductCategory>;
+    debt: Record<string, ProductCategory>;
+    alternative?: Record<string, ProductCategory>;
+    goldSilver?: Record<string, ProductCategory>;
   };
 }
 

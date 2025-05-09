@@ -58,7 +58,9 @@ const AppContext = createContext<{
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [state, dispatch] = useReducer(appReducer, initialState);
 
-  // Load data from localStorage on initial render
+  // Removed localStorage persistence to ensure state is cleared on refresh
+  // If you want to re-enable persistence, uncomment the following code:
+  /*
   useEffect(() => {
     const savedState = localStorage.getItem('investWiseState');
     if (savedState) {
@@ -72,10 +74,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  // Save state to localStorage whenever it changes
   useEffect(() => {
     localStorage.setItem('investWiseState', JSON.stringify(state));
   }, [state]);
+  */
 
   // Helper function to load test data
   const loadTestData = () => {

@@ -128,32 +128,7 @@ export const RiskPage = () => {
             </div>
           </div>
 
-          <div className="space-y-4 mt-6">
-            <h3 className="text-lg font-medium">Risk Assessment Breakdown</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-muted/50 p-4 rounded-md">
-                <p className="text-sm font-medium text-muted-foreground">Age Impact</p>
-                <p className="text-xl font-semibold">{riskAssessment.details.ageImpact}%</p>
-              </div>
-              <div className="bg-muted/50 p-4 rounded-md">
-                <p className="text-sm font-medium text-muted-foreground">Horizon Impact</p>
-                <p className="text-xl font-semibold">{riskAssessment.details.horizonImpact}%</p>
-              </div>
-              <div className="bg-muted/50 p-4 rounded-md">
-                <p className="text-sm font-medium text-muted-foreground">Style Impact</p>
-                <p className="text-xl font-semibold">{riskAssessment.details.styleImpact}%</p>
-              </div>
-              <div className="bg-muted/50 p-4 rounded-md">
-                <p className="text-sm font-medium text-muted-foreground">Tolerance Impact</p>
-                <p className="text-xl font-semibold">{riskAssessment.details.toleranceImpact}%</p>
-              </div>
-            </div>
-
-            <div className="bg-muted/30 p-4 rounded-md mt-4">
-              <h4 className="font-medium mb-2">Analysis</h4>
-              <p className="text-muted-foreground">{riskAssessment.details.explanation}</p>
-            </div>
-          </div>
+          
         </CardContent>
       </Card>
 
