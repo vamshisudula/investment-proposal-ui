@@ -207,17 +207,18 @@ export const ProposalPage = () => {
               <TabsTrigger value="risk">Risk</TabsTrigger>
               <TabsTrigger value="allocation">Allocation</TabsTrigger>
               <TabsTrigger value="products">Products</TabsTrigger>
-              <TabsTrigger value="implementation">Implementation</TabsTrigger>
+              <TabsTrigger value="disclaimer">Disclaimer</TabsTrigger>
             </TabsList>
             
             {/* Company Introduction */}
             <TabsContent value="company" className="space-y-4">
-              <h3 className="text-lg font-semibold">About InvestWise</h3>
-              <p className="text-muted-foreground">{typeof investmentProposal.companyIntro === 'object' ? investmentProposal.companyIntro.content : investmentProposal.companyIntro}</p>
-              <div className="mt-4 p-4 bg-muted rounded-lg">
-                <h4 className="font-medium mb-2">Our Commitment</h4>
-                <p className="text-sm text-muted-foreground">
-                  At InvestWise, we're committed to helping you achieve your financial goals through personalized investment strategies that align with your risk tolerance and objectives.
+              <h3 className="text-lg font-semibold">About Invest4Edu</h3>
+              <div className="text-muted-foreground space-y-4">
+                <p>
+                  Founded with the vision to transform intellect, experience and technology into services and products for the Financial and IT industry using the digital wave. We are the first coveted Fintech platform in India to provide solution to all your business needs that you'll ever need to transform your effort and determination into a roaring success in terms of wealth creation, client happiness and business growth. All our offerings are based on the idea of inclusivity and simplicity.
+                </p>
+                <p>
+                  Invest Value is an Information technology outsourcing company. The business world is adapting to the fast-changing technological environment and we are committed to build and offer nextgen comprehensive portfolio to accelerate your growth and provide sustainability to navigate through a competitive business framework. Our product and service offerings are built to harness technology and analytics.
                 </p>
               </div>
             </TabsContent>
@@ -594,50 +595,39 @@ export const ProposalPage = () => {
               </div>
             </TabsContent>
             
-            {/* Implementation Plan */}
-            <TabsContent value="implementation" className="space-y-4">
-              <h3 className="text-lg font-semibold">Implementation Plan</h3>
-              <p className="text-muted-foreground">{typeof investmentProposal.implementationPlan === 'object' ? investmentProposal.implementationPlan.content : investmentProposal.implementationPlan}</p>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-                <Card>
-                  <CardHeader className="py-3">
-                    <CardTitle className="text-base">Phase 1</CardTitle>
-                  </CardHeader>
-                  <CardContent className="py-2">
-                    <p className="text-sm">Initial investment of 60% in core holdings</p>
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      Immediate allocation to establish base positions
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="py-3">
-                    <CardTitle className="text-base">Phase 2</CardTitle>
-                  </CardHeader>
-                  <CardContent className="py-2">
-                    <p className="text-sm">Systematic investment of remaining 40%</p>
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      Over the next 3 months to average entry prices
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="py-3">
-                    <CardTitle className="text-base">Ongoing</CardTitle>
-                  </CardHeader>
-                  <CardContent className="py-2">
-                    <p className="text-sm">Regular monthly investments</p>
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      As per the contribution plan discussed
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-              
-              <div className="mt-6 p-4 bg-muted rounded-lg">
-                <h4 className="font-medium mb-2">Disclaimer</h4>
-                <p className="text-xs text-muted-foreground">{typeof investmentProposal.disclaimer === 'object' ? investmentProposal.disclaimer.content : investmentProposal.disclaimer}</p>
+            {/* Disclaimer */}
+            <TabsContent value="disclaimer" className="space-y-4">
+              <h3 className="text-lg font-semibold">Disclaimer</h3>
+              <div className="text-xs text-muted-foreground space-y-4">
+                <p>
+                  Investments in securities market are subject to market risks, read all the related documents carefully before investing.
+                </p>
+                <p>
+                  The information and opinions in this report have been prepared by invest4Edu (i4E) Private limited and are subject to change without any notice. The report and information contained herein are strictly confidential and meant solely for the intended recipient and may not be altered in any way, transmitted to, copied or redistributed, in part or in whole, to any other person or to the media or reproduced in any form, without prior written consent of i4E.
+                </p>
+                <p>
+                  The information and opinions contained in the research report have been compiled or arrived at from sources believed to be reliable and have not been independently verified and no guarantee, representation of warranty, express or implied, is made as to their accuracy, completeness, authenticity or validity. No information or opinions expressed constitute an offer, or an invitation to make an offer, to buy or sell any securities or any derivative instruments related to such securities. Investments in securities are subject to market risk. The value and return on investment may vary because of changes in interest rates, foreign exchange rates or any other reason. Investors should note that each security's price or value may rise or fall and, accordingly, investors may even receive amounts which are less than originally invested. The investor is advised to take into consideration all risk factors including their own financial condition, suitability to risk return profile and the like, and take independent professional and/or tax advice before investing. Opinions expressed are our current opinions as of the date appearing on this report. Investor should understand that statements regarding future prospects may not materialize and are of general nature which may not be specifically suitable to any particular investor. Past performance may not necessarily be an indicator of future performance. Actual results may differ materially from those set forth in projections.
+                </p>
+                <p>
+                  Technical Analysis reports focus on studying the price movement and trading turnover charts of securities or its derivatives, as opposed to focussing on a company's fundamentals and opinions, as such, may not match with reports published on a company's fundamentals.
+                </p>
+                <p>
+                  i4E, its research analysts, directors, officers, employees and associates accept no liabilities for any loss or damage of any kind arising out of the use of this report. This report is not directed or intended for distribution to, or use by, any person or entity who is a citizen or resident of or located in any locality, state, country or other jurisdiction, where such distribution, publication, availability or use would be contrary to law, regulation or which would subject i4E and associates to any registration or licensing requirement within such jurisdiction. The securities described herein may or may not be eligible for sale in all jurisdictions or to certain category of investors. Persons in whose possession this document may come are required to inform themselves of and to observe such restriction.
+                </p>
+                <p>
+                  The views and sentiments expressed in this research report and any findings thereof accurately reflect i4E's analyst truthful views about the subject securities and or issuers discussed herein. i4E is not registered as a stock broker, stock exchange or an advisory firm and/or broker‐dealer under the Securities Exchange Act of 1934, as amended (the "Exchange Act") and is not a member of the Securities Investor Protection Corporation ("SIPC").
+                </p>
+                <p>
+                  This Research Report is the product of i4E Private Limited. i4E Private Limited is the employer of the research analyst(s) who has prepared the research report. i4E Private Limited is the employer of the i4E Private Limited representative who is responsible for the report, are responsible for the content of the i4E Private Limited Research Report; any material conflicts of interest of i4E Private Limited in relation to the issuer(s) or securities discussed in the i4E Private Limited Research Report.
+                </p>
+                <p className="font-medium">
+                  RESEARCH ANALYST - INH000010113
+                </p>
+                <p>
+                  | ARN - 190026 | CIN - U93000MH2021PTC366886 
+                  GST No - 27AAGCI2917P1Z3 
+                  invest4Edu pvt ltd is AMFI registered Mutual Fund distributor.
+                </p>
               </div>
             </TabsContent>
           </Tabs>
