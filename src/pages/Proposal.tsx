@@ -162,15 +162,7 @@ export const ProposalPage = () => {
           <p className="text-muted-foreground">Prepared on: {investmentProposal.date}</p>
         </div>
         <div className="flex space-x-2">
-          <Button 
-            variant="outline"
-            className="flex items-center gap-2"
-            onClick={handleDownloadJson}
-            disabled={pdfLoading}
-          >
-            <FileType className="h-4 w-4" />
-            Download JSON
-          </Button>
+          
           <Button 
             className="flex items-center gap-2" 
             onClick={handleDownloadPdf}
@@ -588,11 +580,7 @@ export const ProposalPage = () => {
                 </div>
               </div>
               
-              <div className="mt-4 flex justify-end">
-                <Button variant="outline" size="sm">
-                  Download detailed product information
-                </Button>
-              </div>
+              
             </TabsContent>
             
             {/* Disclaimer */}

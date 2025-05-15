@@ -38,9 +38,9 @@ export const SidebarNavigation = () => {
     <div className="w-[280px] bg-sidebar border-r border-gray-200 h-screen fixed left-0 top-0 flex flex-col overflow-hidden">
       <div className="p-6 border-b border-gray-200">
         <h1 className="text-xl font-semibold tracking-tight text-sidebar-foreground">
-          InvestWise
+          Invest4Edu
         </h1>
-        <p className="text-sm text-sidebar-foreground/80">Proposal Forge</p>
+        <p className="text-sm text-sidebar-foreground/80">Proposal Generation System</p>
       </div>
 
       <div className="py-4 flex-grow overflow-y-auto">
@@ -73,35 +73,11 @@ export const SidebarNavigation = () => {
             </button>
           ))}
 
-          <div className="px-3 pt-4 mt-4 border-t border-gray-200">
-            <button
-              onClick={() => navigateToStep(6 as StepType)}
-              className={cn(
-                "w-full text-left px-3 py-2 rounded-md flex items-center transition-colors text-sidebar-foreground",
-                currentStep === 6
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                  : "hover:bg-sidebar-accent/50"
-              )}
-            >
-              <div className="w-6 h-6 rounded-full flex items-center justify-center mr-3 bg-sidebar-accent text-sidebar-accent-foreground">
-                <Settings className="h-4 w-4" />
-              </div>
-              <span>Manual Allocation</span>
-              {currentStep === 6 && <ChevronRight className="ml-auto h-4 w-4" />}
-            </button>
-          </div>
+          
         </div>
       </div>
 
-      <div className="p-4 border-t border-gray-200">
-        <Button 
-          variant="outline" 
-          className="w-full justify-start" 
-          onClick={loadTestData}
-        >
-          Load All Test Data
-        </Button>
-      </div>
+      
     </div>
   );
 };

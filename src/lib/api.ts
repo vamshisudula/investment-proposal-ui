@@ -118,6 +118,45 @@ export const submitProfile = async (profileData: ClientProfile): Promise<{ succe
 
 // Transform client profile data for risk assessment API
 const transformProfileForRiskAssessment = (profileData: ClientProfile) => {
+  // Map market drop reaction values to what the API expects
+  let marketDropReaction;
+  switch (profileData.riskTolerance.marketDropReaction) {
+    case 'sell':
+      marketDropReaction = 'sell_all';
+      break;
+    case 'hold':
+      marketDropReaction = 'do_nothing';
+      break;
+    case 'buy':
+      marketDropReaction = 'buy_more';
+      break;
+    default:
+      marketDropReaction = 'do_nothing';
+  }
+
+  // Map investment horizon values to what the API expects
+  let investmentHorizon;
+  switch (profileData.investment.horizon) {
+    case 'short':
+      investmentHorizon = 'short_term';
+      break;
+    case 'medium':
+      investmentHorizon = 'medium_term';
+      break;
+    case 'long':
+      investmentHorizon = 'long_term';
+      break;
+    default:
+      investmentHorizon = 'medium_term';
+  }
+
+  // Map portfolio style to what the API expects
+  let portfolioStyle = profileData.riskTolerance.preferredStyle;
+  if (portfolioStyle === 'moderate') {
+    portfolioStyle = 'balanced';
+  }
+  
+  // Create the transformed data object with the correct field names and values
   return {
     personalInfo: {
       age: profileData.personal.age,
@@ -125,8 +164,8 @@ const transformProfileForRiskAssessment = (profileData: ClientProfile) => {
       occupation: profileData.personal.occupation || "Professional"
     },
     investmentObjectives: {
-      timeHorizon: profileData.investment.horizon === "short" ? 5 : 
-                  profileData.investment.horizon === "medium" ? 15 : 25,
+      // Use the mapped investment horizon string value instead of a number
+      investmentHorizon: investmentHorizon,
       riskTolerance: profileData.riskTolerance.preferredStyle,
       primaryGoal: profileData.investment.primaryGoals[0]?.toLowerCase() || "retirement",
       initialInvestmentAmount: profileData.investment.initialAmount || 500000,
@@ -144,11 +183,16 @@ const transformProfileForRiskAssessment = (profileData: ClientProfile) => {
       }
     },
     riskTolerance: {
-      marketDropReaction: profileData.riskTolerance.marketDropReaction || "hold",
-      returnsVsStability: profileData.riskTolerance.returnsVsStability || "balanced",
-      preferredStyle: profileData.riskTolerance.preferredStyle || "moderate",
+      // Use the mapped values for the fields the API expects
+      marketDropReaction: marketDropReaction,
+      returnsVsStabilityPreference: profileData.riskTolerance.returnsVsStability || "balanced",
+      preferredPortfolioStyle: portfolioStyle,
       maxAcceptableLoss: profileData.riskTolerance.maxAcceptableLoss || 10,
       investmentKnowledge: profileData.riskTolerance.investmentKnowledge || "intermediate"
+    },
+    knowledgeAndExperience: {
+      investmentKnowledge: profileData.riskTolerance.investmentKnowledge === 'advanced' ? 'advanced' : 
+                         profileData.riskTolerance.investmentKnowledge === 'beginner' ? 'beginner' : 'intermediate'
     },
     preferences: {
       preferredInvestmentTypes: ["stocks", "bonds", "mutualFunds"],

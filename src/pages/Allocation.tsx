@@ -115,9 +115,9 @@ export const AllocationPage = () => {
     // Validate that percentages add up to the asset class percentage
     const assetClassPercentage = editedAssetAllocation.assetClassAllocation[currentAssetClass] || 0;
     const productTypePercentages = Object.values(editedAssetAllocation.productTypeAllocation[currentAssetClass] || {});
-    const total = productTypePercentages.reduce((sum, val) => sum + (val as number), 0);
+    const total = productTypePercentages.reduce((sum: number, val) => sum + (Number(val) || 0), 0);
     
-    if (Math.abs(total - assetClassPercentage) > 0.1) {
+    if (Math.abs(total - Number(assetClassPercentage)) > 0.1) {
       toast.error(`Product type allocations must add up to ${assetClassPercentage}%`);
       return;
     }
@@ -155,13 +155,20 @@ export const AllocationPage = () => {
     if (!editedAssetAllocation) return;
     
     const numValue = Number(value);
-    if (isNaN(numValue)) return;
+    if (isNaN(numValue) || numValue < 0 || numValue > 100) return;
+    
+    // Get the other asset class (assuming only equity and debt)
+    const otherAssetClass = assetClass === 'equity' ? 'debt' : 'equity';
+    
+    // Automatically adjust the other asset class to maintain 100% total
+    const otherValue = 100 - numValue;
     
     setEditedAssetAllocation({
       ...editedAssetAllocation,
       assetClassAllocation: {
         ...editedAssetAllocation.assetClassAllocation,
-        [assetClass]: numValue
+        [assetClass]: numValue,
+        [otherAssetClass]: otherValue
       }
     });
   };
@@ -475,10 +482,30 @@ export const AllocationPage = () => {
             >
               <Plus className="h-4 w-4 mr-2" /> Add Product Type
             </Button>
-            <p className="text-sm text-muted-foreground">
-              Note: Product type allocations should add up to {editedAssetAllocation && currentAssetClass ? 
-                (editedAssetAllocation.assetClassAllocation[currentAssetClass] || 0) : 0}%
-            </p>
+            <div className="space-y-2">
+              {editedAssetAllocation && currentAssetClass && (() => {
+                // Calculate current total of all product type percentages
+                const currentTotal = Object.values(editedAssetAllocation.productTypeAllocation[currentAssetClass] || {}).reduce(
+                  (sum: number, val) => sum + (Number(val) || 0), 
+                  0
+                );
+                const targetTotal = Number(editedAssetAllocation.assetClassAllocation[currentAssetClass] || 0);
+                const isValid = Math.abs(currentTotal - targetTotal) <= 0.1;
+                
+                return (
+                  <div className="flex justify-between items-center pt-2 border-t">
+                    <span className="font-medium">Current Total:</span>
+                    <span className={`font-bold ${isValid ? 'text-green-500' : 'text-red-500'}`}>
+                      {currentTotal.toFixed(1)}%
+                    </span>
+                  </div>
+                );
+              })()}
+              <p className="text-sm text-muted-foreground">
+                Note: Product type allocations should add up to {editedAssetAllocation && currentAssetClass ? 
+                  (editedAssetAllocation.assetClassAllocation[currentAssetClass] || 0) : 0}%
+              </p>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditingProductType(false)}>Cancel</Button>

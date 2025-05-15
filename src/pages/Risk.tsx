@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { PageTitle } from '@/components/PageTitle';
@@ -24,6 +23,18 @@ export const RiskPage = () => {
       if (!clientProfile) {
         toast.warning('Please complete client profiling first');
         navigateToStep(1);
+        return;
+      }
+
+      // Check if we're in manual mode (by checking if manualRiskSelection exists in clientProfile)
+      // Note: We added this property in our Profiling.tsx edit but it's not in the ClientProfile type
+      // So we need to use a type assertion here
+      const isManualMode = clientProfile.riskTolerance.investmentKnowledge === 'manual';
+      
+      if (isManualMode) {
+        // Skip the risk assessment page and navigate directly to asset allocation
+        toast.info('Skipping risk assessment (manual mode)');
+        navigateToStep(3);
         return;
       }
 
@@ -56,6 +67,11 @@ export const RiskPage = () => {
   // If no clientProfile, this will redirect in the useEffect
   if (!clientProfile) {
     return <LoadingSpinner message="Redirecting..." />;
+  }
+
+  // Check if we're in manual mode, just in case the redirect didn't happen yet
+  if (clientProfile.riskTolerance.investmentKnowledge === 'manual') {
+    return <LoadingSpinner message="Redirecting to asset allocation..." />;
   }
 
   if (loading) {
@@ -127,8 +143,6 @@ export const RiskPage = () => {
               </p>
             </div>
           </div>
-
-          
         </CardContent>
       </Card>
 
@@ -142,7 +156,18 @@ export const RiskPage = () => {
             <div>
               <h3 className="font-medium">Asset Allocation</h3>
               <p className="text-muted-foreground text-sm">
-                Your risk profile suggests an asset allocation that balances growth potential with risk management.
+                {riskAssessment.riskCategory === 'Conservative' && (
+                  "Your conservative risk profile suggests an asset allocation focused on capital preservation and stable returns. We recommend a higher allocation to fixed income and debt instruments with limited equity exposure."
+                )}
+                {riskAssessment.riskCategory === 'Moderate' && (
+                  "Your moderate risk profile suggests a balanced asset allocation that combines growth potential with risk management. We recommend a mix of equity and fixed income investments to achieve long-term growth while managing volatility."
+                )}
+                {riskAssessment.riskCategory === 'Aggressive' && (
+                  "Your aggressive risk profile suggests an asset allocation focused on maximizing growth potential. We recommend a higher allocation to equity and alternative investments to capitalize on market opportunities for long-term wealth creation."
+                )}
+                {riskAssessment.riskCategory === 'Ultra-Aggressive' && (
+                  "Your ultra-aggressive risk profile suggests an asset allocation heavily focused on maximum growth potential. We recommend a dominant allocation to equity investments (90%+), including higher-risk segments like small-caps, sector-specific funds, and emerging markets, with minimal allocation to fixed income."
+                )}
               </p>
             </div>
           </div>
@@ -151,7 +176,18 @@ export const RiskPage = () => {
             <div>
               <h3 className="font-medium">Investment Horizon</h3>
               <p className="text-muted-foreground text-sm">
-                With your determined risk profile, we can align your investments with your time horizon.
+                {riskAssessment.riskCategory === 'Conservative' && (
+                  "With your conservative risk profile, we recommend shorter to medium-term investment horizons (1-5 years) with an emphasis on liquidity and capital protection. This approach is suitable for investors nearing retirement or with short-term financial goals."
+                )}
+                {riskAssessment.riskCategory === 'Moderate' && (
+                  "With your moderate risk profile, we recommend medium to long-term investment horizons (5-10 years) that allow for some market fluctuations while pursuing growth. This balanced approach suits investors with mid-term financial goals."
+                )}
+                {riskAssessment.riskCategory === 'Aggressive' && (
+                  "With your aggressive risk profile, we recommend longer investment horizons (10+ years) that can withstand market volatility and capitalize on growth opportunities. This approach is ideal for younger investors or those with distant financial goals."
+                )}
+                {riskAssessment.riskCategory === 'Ultra-Aggressive' && (
+                  "With your ultra-aggressive risk profile, we recommend very long investment horizons (10+ years) with a high tolerance for significant market fluctuations. This approach requires the ability to withstand extended periods of volatility and is best suited for younger investors with substantial risk capacity and a long runway to retirement."
+                )}
               </p>
             </div>
           </div>
@@ -160,7 +196,18 @@ export const RiskPage = () => {
             <div>
               <h3 className="font-medium">Product Selection</h3>
               <p className="text-muted-foreground text-sm">
-                We'll recommend specific financial products that match your risk tolerance and financial goals.
+                {riskAssessment.riskCategory === 'Conservative' && (
+                  "We'll recommend conservative financial products such as government bonds, corporate fixed deposits, debt mutual funds, and blue-chip dividend stocks that prioritize capital preservation and regular income."
+                )}
+                {riskAssessment.riskCategory === 'Moderate' && (
+                  "We'll recommend a diversified mix of financial products including balanced mutual funds, index funds, high-quality corporate bonds, and select growth stocks that balance income generation with capital appreciation."
+                )}
+                {riskAssessment.riskCategory === 'Aggressive' && (
+                  "We'll recommend growth-oriented financial products such as equity mutual funds, small and mid-cap stocks, international equity, and alternative investments that maximize long-term capital appreciation potential."
+                )}
+                {riskAssessment.riskCategory === 'Ultra-Aggressive' && (
+                  "We'll recommend high-growth financial products such as sector-specific equity funds, small-cap stocks, emerging market equities, thematic funds, and potentially higher-risk alternative investments like private equity or venture capital funds that aim for maximum capital appreciation with higher volatility."
+                )}
               </p>
             </div>
           </div>
