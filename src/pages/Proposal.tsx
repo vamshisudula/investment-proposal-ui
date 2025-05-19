@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -6,12 +5,13 @@ import { Button } from '@/components/ui/button';
 import { PageTitle } from '@/components/PageTitle';
 import { StepNavigation } from '@/components/StepNavigation';
 import { useAppContext } from '@/context/AppContext';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { generateProposal, downloadJsonProposal, downloadProposalPdf } from '@/lib/api';
+import { generateProposal, downloadJsonProposal, downloadProposalPdf, getMarketOutlook, getStockCategories, getProductRecommendations } from '@/lib/api';
 import { toast } from 'sonner';
-import { FileText, Download, FileType } from 'lucide-react';
+import { FileText, Download, FileType, Loader2 } from 'lucide-react';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { formatIndianCurrency } from '@/lib/utils';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import { MarketOutlookData, StockCategory } from '@/lib/types';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
@@ -21,6 +21,55 @@ export const ProposalPage = () => {
   const [loading, setLoading] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('company');
+  const [marketOutlookData, setMarketOutlookData] = useState<MarketOutlookData | null>(null);
+  const [marketOutlookLoading, setMarketOutlookLoading] = useState(false);
+  const [stockCategories, setStockCategories] = useState<StockCategory[]>([]);
+  const [stockCategoriesLoading, setStockCategoriesLoading] = useState(false);
+  const [refreshingProducts, setRefreshingProducts] = useState(false);
+
+  // Fetch market outlook data from API
+  useEffect(() => {
+    const fetchMarketOutlookData = async () => {
+      try {
+        setMarketOutlookLoading(true);
+        const response = await getMarketOutlook();
+        if (response.success) {
+          setMarketOutlookData(response.data);
+          console.log('Market outlook data loaded:', response.data);
+        } else {
+          console.error('Failed to load market outlook data');
+        }
+      } catch (error) {
+        console.error('Error fetching market outlook data:', error);
+      } finally {
+        setMarketOutlookLoading(false);
+      }
+    };
+
+    fetchMarketOutlookData();
+  }, []);
+  
+  // Fetch stock categories data from API
+  useEffect(() => {
+    const fetchStockCategoriesData = async () => {
+      try {
+        setStockCategoriesLoading(true);
+        const response = await getStockCategories();
+        if (response.success) {
+          setStockCategories(response.data);
+          console.log('Stock categories data loaded:', response.data);
+        } else {
+          console.error('Failed to load stock categories data');
+        }
+      } catch (error) {
+        console.error('Error fetching stock categories data:', error);
+      } finally {
+        setStockCategoriesLoading(false);
+      }
+    };
+
+    fetchStockCategoriesData();
+  }, []);
 
   useEffect(() => {
     const fetchInvestmentProposal = async () => {
@@ -53,6 +102,19 @@ export const ProposalPage = () => {
         // If recommendations property is missing, create a default structure
         if (!validProductRecommendations.recommendations) {
           console.warn('Creating default recommendations structure for proposal');
+          // Create stock category products based on fetched stock categories
+          const stockCategoryProducts = stockCategories.map(category => ({
+            name: `${category.name} Stock`,
+            description: `Listed equity in ${category.name} category`,
+            expectedReturn: category.code === 'LACAP' ? '10-12%' : 
+                          category.code === 'MIDCAP' ? '12-15%' : 
+                          category.code === 'SMCAP' ? '15-18%' : '18-22%',
+            risk: category.code === 'LACAP' ? 'Moderate' : 
+                 category.code === 'MIDCAP' ? 'Moderate-High' : 
+                 category.code === 'SMCAP' ? 'High' : 'Very High',
+            category: category.name
+          }));
+          
           validProductRecommendations = {
             ...validProductRecommendations,
             recommendations: {
@@ -62,7 +124,15 @@ export const ProposalPage = () => {
                     { name: 'Multi Cap Fund C', description: 'Diversified across market caps', expectedReturn: '12-14%', risk: 'Moderate' },
                     { name: 'Focused Equity Fund D', description: 'Concentrated portfolio of 25-30 stocks', expectedReturn: '13-15%', risk: 'Moderate-High' }
                   ],
-                  allocation: 100
+                  allocation: 60
+                },
+                listedStocks: {
+                  products: stockCategoryProducts.length > 0 ? stockCategoryProducts : [
+                    { name: 'Large Cap Stock', description: 'Listed equity in large cap category', expectedReturn: '10-12%', risk: 'Moderate' },
+                    { name: 'Mid Cap Stock', description: 'Listed equity in mid cap category', expectedReturn: '12-15%', risk: 'Moderate-High' },
+                    { name: 'Small Cap Stock', description: 'Listed equity in small cap category', expectedReturn: '15-18%', risk: 'High' }
+                  ],
+                  allocation: 40
                 }
               },
               debt: {
@@ -130,15 +200,75 @@ export const ProposalPage = () => {
 
   // Handler for downloading the proposal as PDF
   const handleDownloadPdf = async () => {
+    if (!investmentProposal) {
+      toast.error('No investment proposal data available');
+      return;
+    }
+    
+    // Create a custom proposal object that exactly matches what's displayed on the page
+    const customProposal = {
+      ...investmentProposal,
+      title: `Investment Proposal for ${clientProfile?.personal?.name || "Client"}`,
+      clientName: clientProfile?.personal?.name || "Client",
+      // Use the client profile from state which is displayed on the page
+      clientProfile: clientProfile,
+      // Use the asset allocation from state which is displayed on the page
+      assetAllocation: assetAllocation,
+      // Use the product recommendations from state which is displayed on the page
+      productRecommendations: productRecommendations,
+      // Make sure we have the risk assessment
+      riskAssessment: riskAssessment
+    };
+    
+    console.log('Sending custom proposal with exact data from page:', {
+      clientName: customProposal.clientName,
+      title: customProposal.title,
+      assetAllocation: {
+        portfolioSize: customProposal.assetAllocation.portfolioSize,
+        assetClassAllocation: customProposal.assetAllocation.assetClassAllocation
+      },
+      productRecommendations: 'Using exact product recommendations from page'
+    });
+    
+    // Log the detailed asset allocation and product recommendations
+    console.log('Exact asset allocation from page:', assetAllocation);
+    console.log('Exact product recommendations from page:', productRecommendations);
+    
     setPdfLoading(true);
     try {
-      await downloadProposalPdf(investmentProposal);
-      toast.success('Proposal downloaded as PDF');
+      // Send the custom proposal with exact data from the page
+      await downloadProposalPdf(customProposal);
+      toast.success('PDF downloaded successfully');
     } catch (error) {
       console.error('Error downloading PDF:', error);
       toast.error('Failed to download PDF');
     } finally {
       setPdfLoading(false);
+    }
+  };
+
+  // Handle refreshing product recommendations from API
+  const handleRefreshProducts = async () => {
+    if (!clientProfile || !riskAssessment || !assetAllocation) {
+      toast.warning('Please complete previous steps first');
+      return;
+    }
+    
+    setRefreshingProducts(true);
+    try {
+      const response = await getProductRecommendations(clientProfile, riskAssessment, assetAllocation);
+      if (response.success) {
+        dispatch({ type: 'SET_PRODUCT_RECOMMENDATIONS', payload: response.productRecommendations });
+        toast.success('Product recommendations refreshed');
+        console.log('Refreshed product recommendations:', response.productRecommendations);
+      } else {
+        toast.error('Failed to refresh product recommendations');
+      }
+    } catch (error) {
+      console.error('Error refreshing product recommendations:', error);
+      toast.error('Error refreshing product recommendations');
+    } finally {
+      setRefreshingProducts(false);
     }
   };
 
@@ -217,27 +347,26 @@ export const ProposalPage = () => {
             
             {/* Market Outlook */}
             <TabsContent value="market" className="space-y-4">
-              <h3 className="text-lg font-semibold">Current Market Outlook</h3>
-              <p className="text-muted-foreground">{typeof investmentProposal.marketOutlook === 'object' ? investmentProposal.marketOutlook.content : investmentProposal.marketOutlook}</p>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-                <Card>
-                  <CardHeader className="py-3">
-                    <CardTitle className="text-base">Equity Markets</CardTitle>
-                  </CardHeader>
-                  <CardContent className="py-2">
-                    <p className="text-sm text-muted-foreground">Positive outlook with potential for growth in select sectors.</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="py-3">
-                    <CardTitle className="text-base">Fixed Income</CardTitle>
-                  </CardHeader>
-                  <CardContent className="py-2">
-                    <p className="text-sm text-muted-foreground">Yields expected to stabilize as inflation pressures ease.</p>
-                  </CardContent>
-                </Card>
-
-              </div>
+              <h3 className="text-lg font-semibold">Market Outlook</h3>
+              
+              {marketOutlookLoading ? (
+                <div className="flex justify-center py-8">
+                  <LoadingSpinner />
+                </div>
+              ) : marketOutlookData?.latestEntry ? (
+                <div className="space-y-4">
+                  <div className="bg-muted/30 p-4 rounded-lg border">
+                    <p className="font-medium">"{marketOutlookData.latestEntry.marketOutlook}"</p>
+                  </div>
+                  
+                  <h3 className="text-lg font-semibold mt-6">Debt Overview:</h3>
+                  <div className="bg-muted/30 p-4 rounded-lg border">
+                    <p className="font-medium">"{marketOutlookData.latestEntry.description}"</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-muted-foreground">{typeof investmentProposal.marketOutlook === 'object' ? investmentProposal.marketOutlook.content : investmentProposal.marketOutlook}</p>
+              )}
             </TabsContent>
             
             {/* Client Profile */}
@@ -436,7 +565,24 @@ export const ProposalPage = () => {
             
             {/* Product Recommendations */}
             <TabsContent value="products" className="space-y-4">
-              <h3 className="text-lg font-semibold">Recommended Products</h3>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold">Recommended Products</h3>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleRefreshProducts} 
+                  disabled={refreshingProducts}
+                >
+                  {refreshingProducts ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Refreshing...
+                    </>
+                  ) : (
+                    'Refresh Products'
+                  )}
+                </Button>
+              </div>
               <p className="text-muted-foreground mb-4">{productRecommendations.recommendationSummary}</p>
               
               <div className="space-y-6">

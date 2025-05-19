@@ -1,5 +1,6 @@
-import { ClientProfile, RiskAssessment, AssetAllocation, ProductRecommendations, InvestmentProposal } from './types';
+import { ClientProfile, RiskAssessment, AssetAllocation, ProductRecommendations, InvestmentProposal, MarketOutlookData, StockCategory } from './types';
 import { generateProposalPDF } from './pdf-generator';
+import { formatIndianCurrency } from './utils';
 
 // API Base URL
 const API_BASE_URL = 'http://localhost:5000';
@@ -568,13 +569,15 @@ const transformDataForProposal = (
       assetClassAllocation: {
         equity: data.assetAllocation.assetClassAllocation.equity,
         debt: data.assetAllocation.assetClassAllocation.debt,
-        goldSilver: data.assetAllocation.assetClassAllocation.alternative / 2,
+        // Use bracket notation to access the 'alternative' property to avoid TypeScript errors
+        goldSilver: data.assetAllocation.assetClassAllocation['alternative'] ? data.assetAllocation.assetClassAllocation['alternative'] / 2 : 5,
         cash: 5
       },
       productTypeAllocation: {
         equity: data.assetAllocation.productTypeAllocation.equity,
         debt: data.assetAllocation.productTypeAllocation.debt,
-        goldSilver: data.assetAllocation.productTypeAllocation.alternative
+        // Use bracket notation to access the 'alternative' property to avoid TypeScript errors
+        goldSilver: data.assetAllocation.productTypeAllocation['alternative'] || {}
       }
     },
     productRecommendations: data.productRecommendations
@@ -641,186 +644,468 @@ export const downloadJsonProposal = async (proposal: InvestmentProposal): Promis
   URL.revokeObjectURL(url);
 };
 
-export const downloadProposalPdf = async (proposal: InvestmentProposal): Promise<void> => {
-  // First, ensure we have valid product recommendations with a summary
-  if (!proposal.productRecommendations?.recommendationSummary) {
-    console.warn('Product recommendations summary missing, generating default');
-    proposal.productRecommendations = {
-      ...proposal.productRecommendations,
-      recommendationSummary: `Based on your risk profile (${proposal.riskAssessment?.riskCategory || 'Moderate'}) and investment objectives, we recommend a diversified portfolio of investment products across equity, debt, and alternative assets. The specific allocation and product selection are designed to align with your financial goals while maintaining an appropriate risk level.`
+// Fetch stock categories from the API
+export const getStockCategories = async (): Promise<{ success: boolean; data: StockCategory[] }> => {
+  try {
+    console.log('Fetching stock categories data from API');
+    
+    const response = await fetch(`${API_BASE_URL}/api/stock-categories`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    const data = await handleApiResponse(response);
+    
+    if (data.success && Array.isArray(data.data)) {
+      console.log('Stock categories data received:', data.data);
+      return {
+        success: true,
+        data: data.data
+      };
+    } else {
+      console.error('Invalid stock categories data format:', data);
+      throw new Error('Invalid stock categories data format');
+    }
+  } catch (error) {
+    console.error('Error fetching stock categories data:', error);
+    // Return a default structure in case of error
+    return {
+      success: false,
+      data: []
     };
   }
+};
+
+// Fetch market outlook data from the API
+export const getMarketOutlook = async (): Promise<{ success: boolean; data: MarketOutlookData }> => {
+  try {
+    console.log('Fetching market outlook data from API');
+    
+    const response = await fetch(`${API_BASE_URL}/api/market-outlook`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    const data = await handleApiResponse(response);
+    
+    if (data.success && data.data) {
+      console.log('Market outlook data received:', data.data);
+      return {
+        success: true,
+        data: data.data
+      };
+    } else {
+      console.error('Invalid market outlook data format:', data);
+      throw new Error('Invalid market outlook data format');
+    }
+  } catch (error) {
+    console.error('Error fetching market outlook data:', error);
+    // Return a default structure in case of error
+    return {
+      success: false,
+      data: {
+        latestEntry: null
+      }
+    };
+  }
+};
+
+export const downloadProposalPdf = async (proposal: InvestmentProposal): Promise<void> => {
+  console.log('Received proposal data for PDF generation:', {
+    title: proposal.title,
+    clientName: proposal.clientName,
+    portfolioSize: proposal.assetAllocation?.portfolioSize,
+    assetClassAllocation: proposal.assetAllocation?.assetClassAllocation
+  });
 
   try {
-    // Ensure proposal has all required fields before sending to API
-    const validatedProposal = ensureValidProposal(proposal);
+    // Create a direct mapping from the proposal data to the API format
+    // This ensures we use exactly what's displayed on the page
     
-    // Transform the data into the exact format expected by the API
-    const apiProposalData = {
-      title: validatedProposal.title || "Investment Proposal",
-      date: validatedProposal.date || new Date().toLocaleDateString(),
-      clientName: validatedProposal.clientName || "Client",
-      advisorName: validatedProposal.advisorName || "InvestWise Advisor",
-      
-      // Use a try-catch block to ensure transformClientProfileForAPI doesn't fail
-      clientProfile: (() => {
-        try {
-          return transformClientProfileForAPI(validatedProposal.clientProfile);
-        } catch (error) {
-          console.error('Error transforming client profile:', error);
-          // Return a minimal valid structure
-          return {
-            personalInfo: {
-              name: validatedProposal.clientName || "Client",
-              age: 35,
-              occupation: "Professional",
-              annualIncome: 1000000,
-              email: "client@example.com",
-              phone: "+91-0000000000",
-              address: ""
-            },
-            financialSituation: {
-              netWorth: 2000000,
-              monthlyExpenses: 50000,
-              existingInvestments: { stocks: 0, bonds: 0, realEstate: 0, cash: 0 },
-              debts: { mortgage: 0, studentLoans: 0, carLoan: 0, creditCards: 0 },
-              emergencyFund: 100000,
-              insuranceCoverage: { health: true, life: true, disability: false, propertyAndCasualty: true }
-            },
-            investmentObjectives: {
-              primaryGoal: "retirement",
-              timeHorizon: 20,
-              initialInvestmentAmount: 500000,
-              monthlyContribution: 10000,
-              riskTolerance: "moderate"
-            },
-            preferences: {
-              preferredInvestmentTypes: ["stocks", "bonds", "mutualFunds"],
-              excludedSectors: [],
-              preferredGeographies: ["India", "US"],
-              sustainabilityFocus: false,
-              liquidityNeeds: "medium"
-            },
-            riskTolerance: {
-              marketDropReaction: "hold",
-              returnsVsStability: "balanced",
-              preferredStyle: "moderate",
-              maxAcceptableLoss: 10
-            }
-          };
-        }
-      })(),
-      
-      riskProfile: {
-        riskScore: validatedProposal.riskAssessment?.riskScore || 50,
-        riskCategory: validatedProposal.riskAssessment?.riskCategory || "Moderate",
-        details: validatedProposal.riskAssessment?.details || {
-          explanation: "Balanced risk profile suitable for medium-term investment goals."
-        }
-      },
-      
-      assetAllocation: {
-        portfolioSize: validatedProposal.assetAllocation?.portfolioSize || 500000,
-        assetClassAllocation: {
-          equity: validatedProposal.assetAllocation?.assetClassAllocation?.equity || 50,
-          debt: validatedProposal.assetAllocation?.assetClassAllocation?.debt || 40,
-          goldSilver: (validatedProposal.assetAllocation?.assetClassAllocation?.alternative || 10) / 2,
-          cash: 5
-        },
-        rationale: validatedProposal.assetAllocation?.rationale || "Balanced allocation strategy aligned with risk profile."
-      },
-      
-      companyIntroduction: {
-        title: "About INVEST4EDU PRIVATE LIMITED",
-        content: validatedProposal.companyIntro || "INVEST4EDU is a leading financial advisory firm dedicated to helping clients achieve their financial goals."
-      },
-      
-      marketOverview: {
-        title: "Market Outlook",
-        content: validatedProposal.marketOutlook || "The current market environment presents both challenges and opportunities for investors."
-      },
-      
-      clientProfileRecap: {
-        title: "Client Profile Summary",
-        content: `
-## Personal Information
-- **Name**: ${validatedProposal.clientProfile?.personal?.name || "Client"}
-- **Age**: ${validatedProposal.clientProfile?.personal?.age || 35}
-- **Occupation**: ${validatedProposal.clientProfile?.personal?.occupation || "Professional"}
-
-## Investment Objectives
-- **Primary Goals**: ${(validatedProposal.clientProfile?.investment?.primaryGoals || ["Retirement"]).join(', ')}
-- **Investment Horizon**: ${validatedProposal.clientProfile?.investment?.horizon || "Medium-term"}
-
-## Risk Profile
-- **Risk Category**: ${validatedProposal.riskAssessment?.riskCategory || "Moderate"}
-- **Risk Score**: ${validatedProposal.riskAssessment?.riskScore || 50}
-`
-      },
-      
-      assetAllocationSummary: {
-        title: "Asset Allocation Strategy",
-        content: `Based on your risk profile (${validatedProposal.riskAssessment?.riskCategory || "Moderate"}), we recommend the following asset allocation:
-
-| Asset Class | Allocation (%) |
-|-------------|----------------|
-| Equity | ${validatedProposal.assetAllocation?.assetClassAllocation?.equity || 50}% |
-| Debt | ${validatedProposal.assetAllocation?.assetClassAllocation?.debt || 40}% |
-| Gold & Silver | ${(validatedProposal.assetAllocation?.assetClassAllocation?.alternative || 10) / 2}% |
-| Cash | 5% |`
-      },
-      
-      productDetails: {
-        title: "Investment Products",
-        content: proposal.productRecommendations?.recommendationSummary || `Based on your risk profile and asset allocation strategy, we recommend a diversified portfolio of investment products:
-
-1. Equity: Large-cap and mid-cap mutual funds for stable growth
-2. Debt: Government securities and corporate bonds for regular income
-3. Gold & Silver: ETFs for portfolio diversification
-4. Cash: High-yield savings account for liquidity`
-      },
-      
-      implementationPlan: {
-        title: "Implementation Strategy",
-        content: validatedProposal.implementationPlan || `
-1. Initial allocation of 60% of funds to core holdings within 1 week
-2. Staggered investment of remaining 40% over 3 months
-3. Regular portfolio review and rebalancing every quarter
-4. Annual comprehensive strategy reassessment`
-      },
-      
-      disclaimer: validatedProposal.disclaimer || `This investment proposal is based on the information provided and current market conditions. Past performance is not indicative of future results. Investments are subject to market risks. Please read all scheme-related documents carefully before investing.`
+    // Categorize products by their actual types
+    const mutualFundsList = [];
+    const pmsFunds = [];
+    const aifFunds = [];
+    const unlisted = [];
+    const debtPapers = [];
+    
+    // Process all recommendations by category
+    const allRecommendations = proposal.productRecommendations?.recommendations || {};
+    
+    // Helper function to extract return value
+    const extractReturnValue = (returnStr) => {
+      if (!returnStr) return 10.00; // Default
+      const match = returnStr.match(/(\d+(\.\d+)?)/); 
+      return match ? parseFloat(match[1]) : 10.00;
     };
-
-    console.log('Making API call to generate PDF with data:', JSON.stringify(apiProposalData));
-
-    const response = await fetch(`${API_BASE_URL}/api/generate-proposal-pdf`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
+    
+    // Process equity products and categorize them
+    if (allRecommendations.equity) {
+      Object.entries(allRecommendations.equity).forEach(([type, details]) => {
+        // @ts-ignore - type safety for details
+        if (details && details.products && Array.isArray(details.products)) {
+          // @ts-ignore - type safety for products
+          details.products.forEach(product => {
+            const returnValue = extractReturnValue(product.expectedReturn);
+            
+            // Determine the actual category based on product type and name
+            let category = 'Balanced';
+            if (type.toLowerCase().includes('large cap')) {
+              category = 'LargeCap';
+            } else if (type.toLowerCase().includes('mid cap')) {
+              category = 'MidCap';
+            } else if (type.toLowerCase().includes('small cap')) {
+              category = 'SmallCap';
+            } else if (type.toLowerCase().includes('global')) {
+              category = 'Global Fund';
+            } else if (type.toLowerCase().includes('hybrid')) {
+              category = 'Hybrid';
+            } else if (type.toLowerCase().includes('elss')) {
+              category = 'ELSS';
+            }
+            
+            // Check if this is a PMS, AIF, or unlisted equity
+            const productName = product.name.toLowerCase();
+            const productDesc = (product.description || '').toLowerCase();
+            
+            if (type.toLowerCase().includes('pms') || 
+                productName.includes('pms') || 
+                productDesc.includes('portfolio management') ||
+                productName.includes('island') ||
+                productName.includes('abakkus') ||
+                productName.includes('phoenix pms')) {
+              // This is a PMS product
+              pmsFunds.push({
+                fund_name: product.name,
+                category: "PMS",
+                investment_size: formatIndianCurrency(proposal.assetAllocation?.portfolioSize * 0.1) // Estimate
+              });
+            } 
+            else if (type.toLowerCase().includes('aif') || 
+                    productName.includes('aif') || 
+                    productName.includes('alternative investment') ||
+                    productName.includes('special situations') ||
+                    productName.includes('long-short') ||
+                    productName.includes('northern arc')) {
+              // This is an AIF product
+              aifFunds.push({
+                fund_name: product.name,
+                category: "AIF",
+                investment_size: formatIndianCurrency(proposal.assetAllocation?.portfolioSize * 0.1) // Estimate
+              });
+            }
+            else if (productName.includes('unlisted') || 
+                    type.toLowerCase().includes('unlisted') ||
+                    productDesc.includes('unlisted') ||
+                    productName.includes('private') ||
+                    !productName.includes('fund')) {
+              // This is likely an unlisted equity
+              unlisted.push({
+                name: product.name,
+                industry: "Financials", // Default
+                investment_size: formatIndianCurrency(proposal.assetAllocation?.portfolioSize * 0.05) // Estimate
+              });
+            }
+            else {
+              // This is a regular mutual fund
+              mutualFundsList.push({
+                name: product.name,
+                category: category,
+                returns: {
+                  one_year: returnValue,
+                  three_years: returnValue,
+                  five_years: returnValue
+                }
+              });
+            }
+          });
+        }
+      });
+    }
+    
+    // Process debt products
+    if (allRecommendations.debt) {
+      Object.entries(allRecommendations.debt).forEach(([type, details]) => {
+        // @ts-ignore
+        if (details && details.products && Array.isArray(details.products)) {
+          // @ts-ignore
+          details.products.forEach(product => {
+            debtPapers.push({
+              fund_name: product.name,
+              maturity: "28 Jan 2027(M)",
+              payment_frequency: "Monthly",
+              ytm: product.expectedReturn || "7-8%",
+              quantum: "10 Lac",
+              type: "Senior Secured",
+              face_value: "1,00,000",
+              rating: "A by ICRA"
+            });
+          });
+        }
+      });
+    }
+    
+    // Process alternative products if they exist
+    if (allRecommendations.alternative) {
+      Object.entries(allRecommendations.alternative).forEach(([type, details]) => {
+        // @ts-ignore
+        if (details && details.products && Array.isArray(details.products)) {
+          // @ts-ignore
+          details.products.forEach(product => {
+            // Categorize based on product type
+            const productName = product.name.toLowerCase();
+            
+            if (productName.includes('pms') || type.toLowerCase().includes('pms')) {
+              pmsFunds.push({
+                fund_name: product.name,
+                category: "PMS",
+                investment_size: formatIndianCurrency(proposal.assetAllocation?.portfolioSize * 0.1)
+              });
+            } 
+            else if (productName.includes('aif') || type.toLowerCase().includes('aif')) {
+              aifFunds.push({
+                fund_name: product.name,
+                category: "AIF",
+                investment_size: formatIndianCurrency(proposal.assetAllocation?.portfolioSize * 0.1)
+              });
+            }
+            else {
+              unlisted.push({
+                name: product.name,
+                industry: "Alternative",
+                investment_size: formatIndianCurrency(proposal.assetAllocation?.portfolioSize * 0.05)
+              });
+            }
+          });
+        }
+      });
+    }
+    
+    // Process asset allocation items
+    const assetAllocationItems = [];
+    
+    // Process equity allocation
+    if (proposal.assetAllocation?.productTypeAllocation?.equity) {
+      Object.entries(proposal.assetAllocation.productTypeAllocation.equity).forEach(([type, allocation]) => {
+        const amount = proposal.assetAllocation.portfolioSize * (Number(allocation) / 100);
+        
+        assetAllocationItems.push({
+          name: `${type} Funds`,
+          details: [`${type} Fund - ${formatIndianCurrency(amount)}`],
+          asset_class: "Equity",
+          amount: formatIndianCurrency(amount)
+        });
+      });
+    }
+    
+    // Process debt allocation
+    if (proposal.assetAllocation?.productTypeAllocation?.debt) {
+      Object.entries(proposal.assetAllocation.productTypeAllocation.debt).forEach(([type, allocation]) => {
+        const amount = proposal.assetAllocation.portfolioSize * (Number(allocation) / 100);
+        
+        assetAllocationItems.push({
+          name: type,
+          details: [`${type} - ${formatIndianCurrency(amount)}`],
+          asset_class: "Debt",
+          amount: formatIndianCurrency(amount)
+        });
+      });
+    }
+    
+    // Process alternative allocation if available
+    if (proposal.assetAllocation?.productTypeAllocation['alternative']) {
+      Object.entries(proposal.assetAllocation.productTypeAllocation['alternative']).forEach(([type, allocation]) => {
+        const amount = proposal.assetAllocation.portfolioSize * (Number(allocation) / 100);
+        
+        assetAllocationItems.push({
+          name: type,
+          details: [`${type} - ${formatIndianCurrency(amount)}`],
+          asset_class: "Alternative",
+          amount: formatIndianCurrency(amount)
+        });
+      });
+    }
+    
+    // Format the data according to the new API structure
+    // Extract client name from the proposal - prioritize direct clientName property
+    // This ensures we don't depend on the potentially missing clientProfile structure
+    const clientName = proposal.clientName || "";
+    
+    console.log('Client name extracted from proposal (direct property):', clientName);
+    
+    // For debugging only - check if client profile exists and has a name
+    if (proposal.clientProfile && 
+    typeof proposal.clientProfile === 'object') {
+      if (proposal.clientProfile.personal && 
+      typeof proposal.clientProfile.personal === 'object') {
+        console.log('Client profile personal name:', proposal.clientProfile.personal.name);
+      } else {
+        console.log('Client profile exists but personal data is missing or invalid');
+      }
+    } else {
+      console.log('Client profile is missing or not an object');
+    }
+    
+    // Use the direct clientName property which we've ensured is set correctly in the Proposal page
+    console.log('Final client name to be used:', clientName);
+    
+    // Prepare the final data for the API in the expected format
+    // Only include sections that have actual data
+    const pdfData = {
+      clientname: clientName,
+      report_title: proposal.title || "Investment Proposal for " + clientName,
+      logo_url: "",
+      investment_products: {
+        target: formatIndianCurrency(proposal.assetAllocation?.portfolioSize || 0),
+        mutual_fund: mutualFundsList.length > 0 ? {
+          points: [
+            "Focus on creating a Mutual fund portfolio with objective of long term wealth creation.",
+            "Selection of fund which are majorly equity oriented and capable of generating Alpha in comparison with the benchmark returns.",
+            "Investment in funds with a time horizon of 5 - 7years.",
+            "Selection of portfolio which are managed by Fund Managers with proven track record."
+          ],
+          top_funds: mutualFundsList
+        } : null
       },
-      body: JSON.stringify(apiProposalData)
+      asset_allocation: {
+        description: "Asset Allocation is a mix of different asset class eg equity, Debt, Gold etc in an investment portfolio. The aim of asset allocation is to balance risk and return in accordance with different financial goals and risk appetite of the client.",
+        benefits: [
+          "Reduce Investment Risk",
+          "Optimises Returns",
+          "Liquidity Management",
+          "Achievement of Financial Goal",
+          "Aids in Tax Planning"
+        ],
+        distribution: {
+          equity: proposal.assetAllocation?.assetClassAllocation?.equity || 50,
+          debt: proposal.assetAllocation?.assetClassAllocation?.debt || 50
+        },
+        items: assetAllocationItems,
+        total: formatIndianCurrency(proposal.assetAllocation?.portfolioSize || 0)
+      }
+    };
+    
+    // Only add fixed_income_offering if we have debt papers
+    if (debtPapers.length > 0) {
+      pdfData.fixed_income_offering = {
+        target: formatIndianCurrency(proposal.assetAllocation?.portfolioSize * (proposal.assetAllocation?.assetClassAllocation?.debt || 40) / 100),
+        description: "The investment strategy is to invest across high quality Fixed Income Instruments along with structured diversified portfolio with an aim to generate periodic cash flows and capital growth.",
+        bullets: [
+          "Focus on high credit quality instruments with majority allocation to issuers with high degree of corporate governance",
+          "Investment strategy is to achieve diversification, targeting periodic cash flows, balancing risk and higher portfolio performance",
+          "High quality income portfolio with dynamic investment duration to take care of market volatility"
+        ],
+        debt_papers: debtPapers
+      };
+    }
+    
+    // Only add PMS if we have PMS funds
+    if (pmsFunds.length > 0) {
+      pdfData.pms = {
+        target: formatIndianCurrency(proposal.assetAllocation?.portfolioSize * 0.2), // Estimate
+        description: "The funds endeavor to generate alpha and risk adjusted returns for the investor by investing in benchmark agnostic multi-cap portfolio with bias towards companies which classify in the mid and small market capitalization.",
+        bullets: [
+          "The Selected Funds invest in companies where valuations are attractive and strong underlying fundamentals form high intrinsic value.",
+          "The companies selected have a strong economic moat that helps them build a competitive advantage to not just withstand economic headwinds but also to compound their earnings over the long term."
+        ],
+        funds: pmsFunds
+      };
+    }
+    
+    // Only add AIFs if we have AIF funds
+    if (aifFunds.length > 0) {
+      pdfData.aif = {
+        target: formatIndianCurrency(proposal.assetAllocation?.portfolioSize * 0.15), // Estimate
+        description: "Alternative Investment Funds provide exposure to non-traditional investment strategies and asset classes.",
+        bullets: [
+          "AIFs offer diversification benefits and potentially higher returns compared to traditional investments.",
+          "These funds are managed by specialized teams with expertise in specific alternative strategies."
+        ],
+        funds: aifFunds
+      };
+    }
+    
+    // Only add private equity if we have unlisted shares
+    if (unlisted.length > 0) {
+      pdfData.private_equity = {
+        target: formatIndianCurrency(proposal.assetAllocation?.portfolioSize * 0.15), // Estimate
+        description: "The investment strategy is to invest in high-potential unlisted companies with strong growth prospects.",
+        bullets: [
+          "The popularity of unlisted shares has grown as a result of the competition between new-age companies to reach the necessary threshold for being listed on the stock market.",
+          "In contrast to investing later, investing in a start-up at an early stage will benefit the investor more because it will result in greater profits and ownership holdings."
+        ],
+        scrips: unlisted
+      };
+    }
+    
+    // Remove any null sections
+    Object.keys(pdfData).forEach(key => {
+      if (pdfData[key] === null) {
+        delete pdfData[key];
+      }
     });
-
-    // Check if response is ok
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to generate PDF: ${response.status} - ${errorText}`);
+    
+    // If investment_products.mutual_fund is null, remove it
+    if (pdfData.investment_products && pdfData.investment_products.mutual_fund === null) {
+      delete pdfData.investment_products.mutual_fund;
     }
 
-    // Get the PDF blob
-    const pdfBlob = await response.blob();
+    // Log the final data being sent to the API with full details
+    console.log('FULL PDF DATA BEING SENT TO API:', JSON.stringify(pdfData, null, 2));
+    
+    // Log a summary for quick reference
+    console.log('Summary of data being sent:', {
+      clientname: pdfData.clientname,
+      report_title: pdfData.report_title,
+      total_investment: pdfData.investment_products.target,
+      asset_allocation: pdfData.asset_allocation.distribution,
+      mutual_funds_count: pdfData.investment_products.mutual_fund.top_funds.length,
+      debt_papers_count: pdfData.fixed_income_offering.debt_papers.length
+    });
+    
+    // Calculate the total percentage for asset allocation to validate data
+    const totalPercentage = (
+      Number(pdfData.asset_allocation.distribution.equity || 0) +
+      Number(pdfData.asset_allocation.distribution.debt || 0)
+    );
+    
+    console.log('Total asset allocation percentage:', totalPercentage, '%');
+    
+    // Log the exact JSON string being sent to the API
+    const jsonData = JSON.stringify(pdfData);
+    console.log('Exact JSON string being sent:', jsonData);
+    
+    // Send the data to the API
+    const response = await fetch('http://127.0.0.1:8000/generate-pdf-json/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: jsonData
+    });
+    
+    // Log the response status
+    console.log('API Response status:', response.status, response.statusText);
 
-    // Create a download link
-    const url = window.URL.createObjectURL(pdfBlob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${validatedProposal.clientName || 'Client'}_Investment_Proposal.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
-
+    // If the API call was successful, download the PDF
+    if (response.ok) {
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${proposal.title || 'Investment Proposal'}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+    } else {
+      console.error('Failed to generate PDF:', await response.text());
+      throw new Error('Failed to generate PDF');
+    }
   } catch (error) {
     console.error('Error downloading PDF:', error);
     throw error;
@@ -833,7 +1118,7 @@ const ensureValidProposal = (proposal: Partial<InvestmentProposal>): InvestmentP
   return {
     title: proposal.title || "Investment Proposal",
     date: proposal.date || new Date().toLocaleDateString(),
-    clientName: proposal.clientName || "Client",
+    clientName: proposal.clientProfile?.personal?.name || proposal.clientName || "Client",
     advisorName: proposal.advisorName || "InvestWise Advisor",
     companyIntro: proposal.companyIntro || "InvestWise is a leading financial advisory firm.",
     marketOutlook: proposal.marketOutlook || "Current market conditions are favorable for a balanced approach.",
@@ -891,14 +1176,13 @@ const ensureValidProposal = (proposal: Partial<InvestmentProposal>): InvestmentP
     assetAllocation: {
       portfolioSize: proposal.assetAllocation?.portfolioSize || 500000,
       assetClassAllocation: {
-        equity: proposal.assetAllocation?.assetClassAllocation?.equity || 50,
-        debt: proposal.assetAllocation?.assetClassAllocation?.debt || 40,
-        alternative: proposal.assetAllocation?.assetClassAllocation?.alternative || 10
+        ...(proposal.assetAllocation?.assetClassAllocation || {}),
+        equity: proposal.assetAllocation?.assetClassAllocation?.['equity'] || 50,
+        debt: proposal.assetAllocation?.assetClassAllocation?.['debt'] || 40,
       },
-      productTypeAllocation: proposal.assetAllocation?.productTypeAllocation || {
-        equity: { 'Large Cap': 25, 'Mid Cap': 15, 'Small Cap': 10 },
-        debt: { 'Government Bonds': 20, 'Corporate Bonds': 20 },
-        alternative: { 'Gold': 5, 'REITs': 5 }
+      productTypeAllocation: {
+        equity: proposal.assetAllocation?.productTypeAllocation?.equity || { 'Large Cap': 25, 'Mid Cap': 15, 'Small Cap': 10 },
+        debt: proposal.assetAllocation?.productTypeAllocation?.debt || { 'Government Bonds': 20, 'Corporate Bonds': 20 }
       },
       rationale: proposal.assetAllocation?.rationale || "Balanced allocation for moderate risk profile."
     },

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAppContext } from '@/context/AppContext';
-import { getProductRecommendations } from '@/lib/api';
-import { ProductRecommendations, ProductRecommendation, ProductCategory } from '@/lib/types';
+import { getProductRecommendations, getStockCategories } from '@/lib/api';
+import { ProductRecommendations, ProductRecommendation, ProductCategory, StockCategory } from '@/lib/types';
 import { PageTitle } from '@/components/PageTitle';
 import { StepNavigation } from '@/components/StepNavigation';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
@@ -13,12 +13,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Trash2, Loader2 } from 'lucide-react';
 
 export const ProductsPage = () => {
   const { state, dispatch } = useAppContext();
   const [isLoading, setIsLoading] = useState(false);
   const { clientProfile, riskAssessment, assetAllocation } = state;
+  const [stockCategories, setStockCategories] = useState<StockCategory[]>([]);
+  const [stockCategoriesLoading, setStockCategoriesLoading] = useState(false);
   
   // State for editing products
   const [editingProduct, setEditingProduct] = useState<ProductRecommendation | null>(null);
@@ -131,6 +133,29 @@ export const ProductsPage = () => {
     toast.success("Summary updated successfully");
   };
 
+  // Fetch stock categories data from API
+  useEffect(() => {
+    const fetchStockCategoriesData = async () => {
+      try {
+        setStockCategoriesLoading(true);
+        const response = await getStockCategories();
+        if (response.success) {
+          setStockCategories(response.data);
+          console.log('Stock categories data loaded:', response.data);
+          console.log('Number of stock categories:', response.data.length);
+        } else {
+          console.error('Failed to load stock categories data');
+        }
+      } catch (error) {
+        console.error('Error fetching stock categories data:', error);
+      } finally {
+        setStockCategoriesLoading(false);
+      }
+    };
+
+    fetchStockCategoriesData();
+  }, []);
+
   useEffect(() => {
     // Redirect if prerequisites are not met
     if (!clientProfile || !riskAssessment || !assetAllocation) {
@@ -139,83 +164,149 @@ export const ProductsPage = () => {
       return;
     }
 
-    const loadProductRecommendations = async () => {
-      setIsLoading(true);
-      try {
-        console.log('Fetching product recommendations with:', {
-          clientProfile,
-          riskAssessment,
-          assetAllocation
-        });
+    // Load product recommendations if prerequisites are met
+    loadProductRecommendations();
+  }, [clientProfile, riskAssessment, assetAllocation]);
+
+  const loadProductRecommendations = async () => {
+    setIsLoading(true);
+    try {
+      console.log('Fetching product recommendations with:', {
+        clientProfile,
+        riskAssessment,
+        assetAllocation
+      });
+      
+      // Call the API to get product recommendations
+      const response = await getProductRecommendations(
+        clientProfile, 
+        riskAssessment,
+        assetAllocation
+      );
+      
+      console.log('Product recommendations response:', response);
+      
+      // Handle the response data properly
+      if (response.success) {
+        let validRecommendations = response.productRecommendations;
         
-        // Call the API to get product recommendations
-        const response = await getProductRecommendations(
-          clientProfile, 
-          riskAssessment,
-          assetAllocation
-        );
-        
-        console.log('Product recommendations response:', response);
-        
-        // Handle the response data properly
-        if (response.success) {
-          let validRecommendations = response.productRecommendations;
+        // If recommendations property is missing, create a default structure
+        if (!validRecommendations.recommendations) {
+          console.warn('Creating default recommendations structure');
+          // Create stock category products based on fetched stock categories
+          console.log('Creating stock category products from:', stockCategories);
+          const stockCategoryProducts = stockCategories.map(category => {
+            const product = {
+              name: `${category.name} Stock`,
+              description: `Listed equity in ${category.name} category`,
+              expectedReturn: category.code === 'LACAP' ? '10-12%' : 
+                            category.code === 'MIDCAP' ? '12-15%' : 
+                            category.code === 'SMCAP' ? '15-18%' : '18-22%',
+              risk: category.code === 'LACAP' ? 'Moderate' : 
+                   category.code === 'MIDCAP' ? 'Moderate-High' : 
+                   category.code === 'SMCAP' ? 'High' : 'Very High',
+              category: category.name,
+              minInvestment: 10000
+            };
+            console.log('Created product:', product);
+            return product;
+          });
+          console.log('Final stock category products:', stockCategoryProducts);
           
-          // If recommendations property is missing, create a default structure
-          if (!validRecommendations.recommendations) {
-            console.warn('Creating default recommendations structure');
-            validRecommendations = {
-              ...validRecommendations,
-              recommendations: {
-                equity: {
-                  mutualFunds: {
-                    products: [
-                      { name: 'Multi Cap Fund C', description: 'Diversified across market caps', expectedReturn: '12-14%', risk: 'Moderate', minInvestment: 5000 },
-                      { name: 'Focused Equity Fund D', description: 'Concentrated portfolio of 25-30 stocks', expectedReturn: '13-15%', risk: 'Moderate-High', minInvestment: 5000 }
-                    ],
-                    allocation: 100
-                  }
+          validRecommendations = {
+            ...validRecommendations,
+            recommendations: {
+              equity: {
+                mutualFunds: {
+                  products: [
+                    { name: 'Multi Cap Fund C', description: 'Diversified across market caps', expectedReturn: '12-14%', risk: 'Moderate', minInvestment: 5000 },
+                    { name: 'Focused Equity Fund D', description: 'Concentrated portfolio of 25-30 stocks', expectedReturn: '13-15%', risk: 'Moderate-High', minInvestment: 5000 }
+                  ],
+                  allocation: 60
                 },
-                debt: {
-                  mutualFunds: {
-                    products: [
-                      { name: 'Short Duration Fund P', description: 'Moderate risk, good returns', expectedReturn: '7-8%', risk: 'Low-Moderate', minInvestment: 5000 },
-                      { name: 'Corporate Bond Fund Q', description: 'Focus on high-quality corporate bonds', expectedReturn: '7.5-8.5%', risk: 'Moderate', minInvestment: 5000 }
-                    ],
-                    allocation: 100
-                  }
+                listedStocks: {
+                  products: stockCategoryProducts.length > 0 ? stockCategoryProducts : [
+                    { name: 'Large Cap Stock', description: 'Listed equity in large cap category', expectedReturn: '10-12%', risk: 'Moderate', category: 'Large Cap', minInvestment: 10000 },
+                    { name: 'Mid Cap Stock', description: 'Listed equity in mid cap category', expectedReturn: '12-15%', risk: 'Moderate-High', category: 'Mid Cap', minInvestment: 10000 },
+                    { name: 'Small Cap Stock', description: 'Listed equity in small cap category', expectedReturn: '15-18%', risk: 'High', category: 'Small Cap', minInvestment: 10000 }
+                  ],
+                  allocation: 40
+                }
+              },
+              debt: {
+                mutualFunds: {
+                  products: [
+                    { name: 'Short Duration Fund P', description: 'Moderate risk, good returns', expectedReturn: '7-8%', risk: 'Low-Moderate', minInvestment: 5000 },
+                    { name: 'Corporate Bond Fund Q', description: 'Focus on high-quality corporate bonds', expectedReturn: '7.5-8.5%', risk: 'Moderate', minInvestment: 5000 }
+                  ],
+                  allocation: 100
                 }
               }
-            };
-          }
-          
-          // Ensure recommendation summary exists
-          if (!validRecommendations.recommendationSummary) {
-            validRecommendations.recommendationSummary = `Based on your ${riskAssessment.riskCategory} risk profile, we have recommended a diversified portfolio of investment products.`;
-          }
-          
-          // Log the structure to help debug
-          console.log('Final product recommendations structure:', JSON.stringify(validRecommendations, null, 2));
-          console.log('Equity recommendations:', validRecommendations.recommendations.equity);
-          console.log('Debt recommendations:', validRecommendations.recommendations.debt);
-          
-          dispatch({ type: 'SET_PRODUCT_RECOMMENDATIONS', payload: validRecommendations });
-          toast.success("Product recommendations retrieved successfully");
-        } else {
-          console.error("Invalid product recommendations response:", response);
-          toast.error("Received invalid product recommendations data");
+            }
+          };
         }
-      } catch (error) {
-        console.error("Error getting product recommendations:", error);
-        toast.error("Failed to retrieve product recommendations");
-      } finally {
-        setIsLoading(false);
+        
+        // Ensure recommendation summary exists
+        if (!validRecommendations.recommendationSummary) {
+          validRecommendations.recommendationSummary = `Based on your ${riskAssessment.riskCategory} risk profile, we have recommended a diversified portfolio of investment products.`;
+        }
+        
+        // Log the structure to help debug
+        console.log('Final product recommendations structure:', JSON.stringify(validRecommendations, null, 2));
+        console.log('Equity recommendations:', validRecommendations.recommendations.equity);
+        
+        // Check if listed stocks exist in the recommendations
+        if (!validRecommendations.recommendations.equity.listedStocks) {
+          console.log('Listed Stocks section not found in equity recommendations - creating it now');
+          
+          // Create stock category products based on fetched stock categories
+          const stockCategoryProducts = stockCategories.map(category => ({
+            name: `${category.name} Stock`,
+            description: `Listed equity in ${category.name} category`,
+            expectedReturn: category.code === 'LACAP' ? '10-12%' : 
+                          category.code === 'MIDCAP' ? '12-15%' : 
+                          category.code === 'SMCAP' ? '15-18%' : '18-22%',
+            risk: category.code === 'LACAP' ? 'Moderate' : 
+                 category.code === 'MIDCAP' ? 'Moderate-High' : 
+                 category.code === 'SMCAP' ? 'High' : 'Very High',
+            category: category.name,
+            minInvestment: 10000
+          }));
+          
+          // Add listed stocks to the recommendations
+          validRecommendations.recommendations.equity.listedStocks = {
+            products: stockCategoryProducts.length > 0 ? stockCategoryProducts : [
+              { name: 'Large Cap Stock', description: 'Listed equity in large cap category', expectedReturn: '10-12%', risk: 'Moderate', category: 'Large Cap', minInvestment: 10000 },
+              { name: 'Mid Cap Stock', description: 'Listed equity in mid cap category', expectedReturn: '12-15%', risk: 'Moderate-High', category: 'Mid Cap', minInvestment: 10000 },
+              { name: 'Small Cap Stock', description: 'Listed equity in small cap category', expectedReturn: '15-18%', risk: 'High', category: 'Small Cap', minInvestment: 10000 }
+            ],
+            allocation: 40
+          };
+          
+          // Adjust mutual funds allocation if it exists
+          if (validRecommendations.recommendations.equity.mutualFunds) {
+            validRecommendations.recommendations.equity.mutualFunds.allocation = 60;
+          }
+        }
+        
+        console.log('Listed Stocks after check:', validRecommendations.recommendations.equity.listedStocks);
+        console.log('Number of listed stock products:', validRecommendations.recommendations.equity.listedStocks.products.length);
+        
+        console.log('Debt recommendations:', validRecommendations.recommendations.debt);
+        
+        dispatch({ type: 'SET_PRODUCT_RECOMMENDATIONS', payload: validRecommendations });
+        toast.success("Product recommendations retrieved successfully");
+      } else {
+        console.error("Invalid product recommendations response:", response);
+        toast.error("Received invalid product recommendations data");
       }
-    };
-
-    // Force reload product recommendations for testing
-    loadProductRecommendations();
-  }, [clientProfile, riskAssessment, assetAllocation, dispatch]);
+    } catch (error) {
+      console.error("Error getting product recommendations:", error);
+      toast.error("Failed to retrieve product recommendations");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   if (isLoading) {
     return <LoadingSpinner message="Fetching product recommendations..." />;
@@ -236,6 +327,24 @@ export const ProductsPage = () => {
         title="Product Recommendations"
         description="Review and customize product recommendations based on client profile and risk assessment."
       />
+      
+      <div className="mb-4 flex justify-end">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={loadProductRecommendations} 
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Refreshing...
+            </>
+          ) : (
+            'Refresh Recommendations'
+          )}
+        </Button>
+      </div>
       
       {state.productRecommendations ? (
         <>
@@ -418,9 +527,33 @@ export const ProductsPage = () => {
             {/* Equity Products */}
             <TabsContent value="equity" className="space-y-4">
               {state.productRecommendations.recommendations.equity && 
-                Object.entries(state.productRecommendations.recommendations.equity).map(([productType, data]: [string, any]) => {
+                // Custom sort function to control the order of product types
+                Object.entries(state.productRecommendations.recommendations.equity)
+                  .sort(([typeA], [typeB]) => {
+                    // Define the order priority for different product types
+                    const getOrderPriority = (type: string) => {
+                      switch(type) {
+                        case 'mutualFunds': return 1; // First
+                        case 'listedStocks': return 2; // Second
+                        case 'etf': return 3;
+                        case 'pms': return 4;
+                        case 'aif': return 5;
+                        case 'unlistedStocks': return 6; // Last
+                        default: return 10; // Any other types come after these
+                      }
+                    };
+                    
+                    return getOrderPriority(typeA) - getOrderPriority(typeB);
+                  })
+                  .map(([productType, data]: [string, any]) => {
+                  // Debug log for each product type
+                  console.log(`Rendering product type: ${productType}`, data);
+                  
                   // Skip if no products or empty array
-                  if (!data?.products || data.products.length === 0) return null;
+                  if (!data?.products || data.products.length === 0) {
+                    console.log(`Skipping ${productType} - no products or empty array`);
+                    return null;
+                  }
                   
                   // Convert camelCase to Title Case for display
                   const formatProductType = (type: string) => {
@@ -434,6 +567,7 @@ export const ProductsPage = () => {
                                   productType === 'pms' ? 'Portfolio Management Services' : 
                                   productType === 'aif' ? 'AIFs' : 
                                   productType === 'unlistedStocks' ? 'Unlisted Stocks' :
+                                  productType === 'listedStocks' ? 'Listed Stocks' :
                                   formatProductType(productType);
                   
                   const description = productType === 'mutualFunds' ? 
@@ -442,6 +576,8 @@ export const ProductsPage = () => {
                     'ETFs offer lower expense ratios compared to mutual funds and provide real-time trading flexibility. They provide diversified exposure to specific market segments with high liquidity.' : 
                     productType === 'pms' ? 
                     'Portfolio Management Services offer personalized investment strategies managed by professional fund managers for high net worth individuals.' :
+                    productType === 'listedStocks' ? 
+                    'Listed stocks provide direct ownership in publicly traded companies on stock exchanges. They offer potential for capital appreciation and dividend income with high liquidity.' :
                     productType === 'aif' ? 
                     'Alternative Investment Funds provide sophisticated investors access to specialized investment strategies with potentially higher returns.' :
                     productType === 'unlistedStocks' ? 
@@ -472,7 +608,6 @@ export const ProductsPage = () => {
                               <div className="flex justify-between items-start">
                                 <h4 className="font-medium">{product.name}</h4>
                                 <div className="flex items-center space-x-2">
-                                  <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">{product.expectedReturn}</span>
                                   <Button 
                                     variant="ghost" 
                                     size="sm" 
@@ -496,14 +631,6 @@ export const ProductsPage = () => {
                                 <div className="mr-4 mb-1">
                                   <span className="font-medium">Risk:</span> {product.risk}
                                 </div>
-                                <div className="mr-4 mb-1">
-                                  <span className="font-medium">Lock-in:</span> {product.lockInPeriod || product.lockIn || 'None'}
-                                </div>
-                                {(product.minimumInvestment || product.minInvestment) && (
-                                  <div className="mb-1">
-                                    <span className="font-medium">Min. Investment:</span> {product.minimumInvestment || formatIndianCurrency(product.minInvestment)}
-                                  </div>
-                                )}
                               </div>
                             </div>
                           ))}
@@ -617,14 +744,6 @@ export const ProductsPage = () => {
                                 <div className="mr-4 mb-1">
                                   <span className="font-medium">Risk:</span> {product.risk}
                                 </div>
-                                <div className="mr-4 mb-1">
-                                  <span className="font-medium">Lock-in:</span> {product.lockInPeriod || product.lockIn || 'None'}
-                                </div>
-                                {(product.minimumInvestment || product.minInvestment) && (
-                                  <div className="mb-1">
-                                    <span className="font-medium">Min. Investment:</span> {product.minimumInvestment || formatIndianCurrency(product.minInvestment)}
-                                  </div>
-                                )}
                               </div>
                             </div>
                           ))}

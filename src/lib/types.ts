@@ -117,6 +117,25 @@ export interface AppState {
   investmentProposal: InvestmentProposal | null;
 }
 
+export interface MarketOutlookEntry {
+  id: string;
+  description: string;
+  marketOutlook: string | null;
+  lastUpdated: string;
+  createdBy: string;
+  createdOn: string;
+}
+
+export interface MarketOutlookData {
+  latestEntry: MarketOutlookEntry | null;
+}
+
+export interface StockCategory {
+  id: string;
+  code: string;
+  name: string;
+}
+
 export type AppAction = 
   | { type: 'SET_STEP'; payload: StepType }
   | { type: 'SET_CLIENT_PROFILE'; payload: ClientProfile }
