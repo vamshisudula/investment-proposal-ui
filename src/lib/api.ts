@@ -66,7 +66,7 @@ const transformClientProfileForAPI = (profileData: ClientProfile) => {
       primaryGoal: profileData.investment.primaryGoals[0]?.toLowerCase() || "retirement",
       timeHorizon: profileData.investment.horizon === "short" ? 5 : 
                   profileData.investment.horizon === "medium" ? 15 : 25,
-      initialInvestmentAmount: profileData.investment.initialAmount,
+      initialInvestmentAmount: profileData.personal.initialAmount,
       monthlyContribution: profileData.investment.regularContribution,
       riskTolerance: profileData.riskTolerance.preferredStyle
     },
@@ -169,7 +169,7 @@ const transformProfileForRiskAssessment = (profileData: ClientProfile) => {
       investmentHorizon: investmentHorizon,
       riskTolerance: profileData.riskTolerance.preferredStyle,
       primaryGoal: profileData.investment.primaryGoals[0]?.toLowerCase() || "retirement",
-      initialInvestmentAmount: profileData.investment.initialAmount || 500000,
+      initialInvestmentAmount: profileData.personal.initialAmount || 500000,
       monthlyContribution: profileData.investment.regularContribution || 10000
     },
     financialSituation: {
@@ -1054,6 +1054,13 @@ export const downloadProposalPdf = async (proposal: InvestmentProposal): Promise
       delete pdfData.investment_products.mutual_fund;
     }
 
+    // Add the new template and blur_funds parameters
+    // Use the template from the proposal or default to 'invest4edu'
+    pdfData.template = proposal.template || 'invest4edu';
+    
+    // Use the blur_funds parameter from the proposal or default to true (initial proposal)
+    pdfData.blur_funds = proposal.blur_funds !== undefined ? proposal.blur_funds : true;
+    
     // Log the final data being sent to the API with full details
     console.log('FULL PDF DATA BEING SENT TO API:', JSON.stringify(pdfData, null, 2));
     
@@ -1061,10 +1068,12 @@ export const downloadProposalPdf = async (proposal: InvestmentProposal): Promise
     console.log('Summary of data being sent:', {
       clientname: pdfData.clientname,
       report_title: pdfData.report_title,
+      template: pdfData.template,
+      blur_funds: pdfData.blur_funds,
       total_investment: pdfData.investment_products.target,
       asset_allocation: pdfData.asset_allocation.distribution,
-      mutual_funds_count: pdfData.investment_products.mutual_fund.top_funds.length,
-      debt_papers_count: pdfData.fixed_income_offering.debt_papers.length
+      mutual_funds_count: pdfData.investment_products.mutual_fund?.top_funds.length,
+      debt_papers_count: pdfData.fixed_income_offering?.debt_papers.length
     });
     
     // Calculate the total percentage for asset allocation to validate data
@@ -1074,6 +1083,8 @@ export const downloadProposalPdf = async (proposal: InvestmentProposal): Promise
     );
     
     console.log('Total asset allocation percentage:', totalPercentage, '%');
+    console.log('Template:', pdfData.template);
+    console.log('Blur funds:', pdfData.blur_funds);
     
     // Log the exact JSON string being sent to the API
     const jsonData = JSON.stringify(pdfData);
@@ -1147,7 +1158,7 @@ const ensureValidProposal = (proposal: Partial<InvestmentProposal>): InvestmentP
         primaryGoals: proposal.clientProfile?.investment?.primaryGoals || ["retirement"],
         horizon: proposal.clientProfile?.investment?.horizon || "medium",
         style: proposal.clientProfile?.investment?.style || "balanced",
-        initialAmount: proposal.clientProfile?.investment?.initialAmount || 500000,
+        initialAmount: proposal.clientProfile?.personal?.initialAmount || 500000,
         regularContribution: proposal.clientProfile?.investment?.regularContribution || 0
       },
       riskTolerance: {
@@ -1267,7 +1278,7 @@ const fallbackRiskAssessment = (clientProfile: ClientProfile): RiskAssessment =>
 
 const fallbackAssetAllocation = (clientProfile: ClientProfile, riskProfile: RiskAssessment): AssetAllocation => {
   const riskCategory = riskProfile.riskCategory;
-  const portfolioSize = clientProfile.investment.initialAmount;
+  const portfolioSize = clientProfile.personal.initialAmount;
   const portfolioSizeInCrores = portfolioSize / 10000000; // Convert to crores
   
   // Asset allocation based on risk category and portfolio size
@@ -1516,9 +1527,9 @@ const fallbackProposal = (data: {
 }): InvestmentProposal => {
   // Create safe references to potentially undefined data
   const clientProfile = data.clientProfile || {
-    personal: { name: 'Client', age: 35, occupation: '', email: '', phone: '', maritalStatus: 'single', dependents: 0 },
+    personal: { name: 'Client', initialAmount: 100000, age: 35, occupation: '', email: '', phone: '', maritalStatus: 'single', dependents: 0 },
     financial: { currentInvestments: 0, liabilities: 0, realEstate: 0, savings: 0, monthlyExpenses: 0, emergencyFund: 'None', existingProducts: [] },
-    investment: { primaryGoals: [], horizon: 'medium', style: 'balanced', initialAmount: 100000, regularContribution: 0 },
+    investment: { primaryGoals: [], horizon: 'medium', style: 'balanced', regularContribution: 0 },
     riskTolerance: { marketDropReaction: '', returnsVsStability: '', preferredStyle: '', maxAcceptableLoss: 10 }
   };
   
@@ -1535,7 +1546,7 @@ const fallbackProposal = (data: {
   };
   
   const assetAllocation = data.assetAllocation || {
-    portfolioSize: clientProfile.investment.initialAmount,
+    portfolioSize: clientProfile.personal.initialAmount,
     assetClassAllocation: { equity: 50, debt: 40, alternative: 10 },
     productTypeAllocation: {
       equity: { 'Large Cap': 25, 'Mid Cap': 15, 'Small Cap': 10 },

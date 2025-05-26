@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Pencil, Plus, Trash2, Loader2 } from 'lucide-react';
+import { AddProductDialog } from '@/components/AddProductDialog';
 
 export const ProductsPage = () => {
   const { state, dispatch } = useAppContext();
@@ -30,6 +31,7 @@ export const ProductsPage = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditSummaryOpen, setIsEditSummaryOpen] = useState(false);
   const [editedSummary, setEditedSummary] = useState('');
+  const [isAddMoreProductsOpen, setIsAddMoreProductsOpen] = useState(false);
 
   // Handler functions for editing products
   const handleEditProduct = (product: ProductRecommendation, productType: string, assetClass: 'equity' | 'debt' | 'goldSilver') => {
@@ -131,6 +133,46 @@ export const ProductsPage = () => {
     dispatch({ type: 'SET_PRODUCT_RECOMMENDATIONS', payload: updatedRecommendations });
     setIsEditSummaryOpen(false);
     toast.success("Summary updated successfully");
+  };
+  
+  // Handler for adding products from the product catalog
+  const handleAddMoreProduct = (product: ProductRecommendation, category: string, assetClass: 'equity' | 'debt' | 'alternative') => {
+    if (!state.productRecommendations) return;
+    
+    const updatedRecommendations = { ...state.productRecommendations };
+    
+    // Map 'alternative' to 'goldSilver' if needed for backward compatibility
+    const targetAssetClass = assetClass === 'alternative' ? 
+      (updatedRecommendations.recommendations.goldSilver ? 'goldSilver' : 'alternative') : 
+      assetClass;
+    
+    // Ensure the asset class exists in recommendations
+    if (!updatedRecommendations.recommendations[targetAssetClass]) {
+      updatedRecommendations.recommendations[targetAssetClass] = {};
+    }
+    
+    // Ensure the category exists in the asset class
+    if (!updatedRecommendations.recommendations[targetAssetClass][category]) {
+      updatedRecommendations.recommendations[targetAssetClass][category] = {
+        products: [],
+        allocation: 5 // Default allocation percentage
+      };
+    }
+    
+    // Check if product already exists
+    const existingProductIndex = updatedRecommendations.recommendations[targetAssetClass][category].products
+      .findIndex(p => p.name === product.name);
+    
+    if (existingProductIndex >= 0) {
+      toast.error("This product is already in your recommendations");
+      return;
+    }
+    
+    // Add the product
+    updatedRecommendations.recommendations[targetAssetClass][category].products.push(product);
+    
+    dispatch({ type: 'SET_PRODUCT_RECOMMENDATIONS', payload: updatedRecommendations });
+    toast.success(`Added ${product.name} to your recommendations`);
   };
 
   // Fetch stock categories data from API
@@ -783,10 +825,27 @@ export const ProductsPage = () => {
             </TabsContent>
           </Tabs>
 
+          <div className="mt-8 mb-4 flex justify-center">
+            <Button 
+              variant="outline" 
+              onClick={() => setIsAddMoreProductsOpen(true)}
+              className="mx-auto"
+            >
+              <Plus className="h-4 w-4 mr-2" /> Add More Products
+            </Button>
+          </div>
+          
           <StepNavigation
             previousStep={3}
             nextStep={5}
             buttonText="Generate Investment Proposal"
+          />
+          
+          {/* Add More Products Dialog */}
+          <AddProductDialog
+            isOpen={isAddMoreProductsOpen}
+            onClose={() => setIsAddMoreProductsOpen(false)}
+            onAddProduct={handleAddMoreProduct}
           />
         </>
       ) : (

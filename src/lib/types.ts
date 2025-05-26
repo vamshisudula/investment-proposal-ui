@@ -2,6 +2,7 @@
 export interface ClientProfile {
   personal: {
     name: string;
+    initialAmount: number;
     age: number;
     occupation: string;
     email: string;
@@ -22,7 +23,6 @@ export interface ClientProfile {
     primaryGoals: string[];
     horizon: string;
     style: string;
-    initialAmount: number;
     regularContribution: number;
   };
   riskTolerance: {

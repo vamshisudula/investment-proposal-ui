@@ -12,6 +12,9 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { formatIndianCurrency } from '@/lib/utils';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { MarketOutlookData, StockCategory } from '@/lib/types';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
@@ -26,6 +29,9 @@ export const ProposalPage = () => {
   const [stockCategories, setStockCategories] = useState<StockCategory[]>([]);
   const [stockCategoriesLoading, setStockCategoriesLoading] = useState(false);
   const [refreshingProducts, setRefreshingProducts] = useState(false);
+  const [downloadDialogOpen, setDownloadDialogOpen] = useState(false);
+  const [proposalTemplate, setProposalTemplate] = useState<'invest4edu' | 'investvalue'>('invest4edu');
+  const [proposalType, setProposalType] = useState<'initial' | 'final'>('initial');
 
   // Fetch market outlook data from API
   useEffect(() => {
@@ -198,12 +204,24 @@ export const ProposalPage = () => {
       });
   };
 
+  // Opens the download dialog to prompt for template and proposal type
+  const openDownloadDialog = () => {
+    if (!investmentProposal) {
+      toast.error('No investment proposal data available');
+      return;
+    }
+    setDownloadDialogOpen(true);
+  };
+
   // Handler for downloading the proposal as PDF
   const handleDownloadPdf = async () => {
     if (!investmentProposal) {
       toast.error('No investment proposal data available');
       return;
     }
+    
+    // Close the dialog
+    setDownloadDialogOpen(false);
     
     // Create a custom proposal object that exactly matches what's displayed on the page
     const customProposal = {
@@ -217,12 +235,17 @@ export const ProposalPage = () => {
       // Use the product recommendations from state which is displayed on the page
       productRecommendations: productRecommendations,
       // Make sure we have the risk assessment
-      riskAssessment: riskAssessment
+      riskAssessment: riskAssessment,
+      // Add the new parameters for template and proposal type
+      template: proposalTemplate,
+      blur_funds: proposalType === 'initial' // true for initial proposal, false for final proposal
     };
     
     console.log('Sending custom proposal with exact data from page:', {
       clientName: customProposal.clientName,
       title: customProposal.title,
+      template: customProposal.template,
+      blur_funds: customProposal.blur_funds,
       assetAllocation: {
         portfolioSize: customProposal.assetAllocation.portfolioSize,
         assetClassAllocation: customProposal.assetAllocation.assetClassAllocation
@@ -292,23 +315,17 @@ export const ProposalPage = () => {
           <p className="text-muted-foreground">Prepared on: {investmentProposal.date}</p>
         </div>
         <div className="flex space-x-2">
-          
-          <Button 
-            className="flex items-center gap-2" 
-            onClick={handleDownloadPdf}
-            disabled={pdfLoading}
+          <Button
+            onClick={openDownloadDialog}
+            disabled={pdfLoading || !investmentProposal}
+            className="flex items-center gap-2"
           >
             {pdfLoading ? (
-              <>
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                Generating...
-              </>
+              <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <>
-                <Download className="h-4 w-4" />
-                Download PDF
-              </>
+              <Download className="h-4 w-4" />
             )}
+            Download PDF
           </Button>
         </div>
       </div>
@@ -446,7 +463,7 @@ export const ProposalPage = () => {
                   <div className="space-y-2">
                     <div className="flex justify-between border-b pb-1">
                       <span className="text-muted-foreground">Initial Amount</span>
-                      <span>{formatIndianCurrency(clientProfile.investment.initialAmount)}</span>
+                      <span>{formatIndianCurrency(clientProfile.personal.initialAmount)}</span>
                     </div>
                     <div className="flex justify-between border-b pb-1">
                       <span className="text-muted-foreground">Regular Contribution</span>
@@ -771,6 +788,66 @@ export const ProposalPage = () => {
       <StepNavigation
         previousStep={4}
       />
+      
+      {/* Download options dialog */}
+      <Dialog open={downloadDialogOpen} onOpenChange={setDownloadDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Download PDF Options</DialogTitle>
+            <DialogDescription>
+              Select the template and proposal type for your PDF download.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <h4 className="font-medium">Template</h4>
+              <RadioGroup 
+                value={proposalTemplate} 
+                onValueChange={(value) => setProposalTemplate(value as 'invest4edu' | 'investvalue')}
+                className="flex flex-col space-y-2"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="invest4edu" id="invest4edu" />
+                  <Label htmlFor="invest4edu">Invest4edu</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="investvalue" id="investvalue" />
+                  <Label htmlFor="investvalue">InvestValue</Label>
+                </div>
+              </RadioGroup>
+            </div>
+            
+            <div className="space-y-2">
+              <h4 className="font-medium">Proposal Type</h4>
+              <RadioGroup 
+                value={proposalType} 
+                onValueChange={(value) => setProposalType(value as 'initial' | 'final')}
+                className="flex flex-col space-y-2"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="initial" id="initial" />
+                  <Label htmlFor="initial">Initial Proposal (Blurred)</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="final" id="final" />
+                  <Label htmlFor="final">Final Proposal</Label>
+                </div>
+              </RadioGroup>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDownloadDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleDownloadPdf} disabled={pdfLoading}>
+              {pdfLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : null}
+              Download
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

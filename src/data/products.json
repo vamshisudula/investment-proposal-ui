@@ -1,0 +1,328 @@
+{
+  "equity": {
+    "Large Cap": [
+      {
+        "name": "HDFC Top 100 Fund",
+        "description": "Invests in top 100 companies by market capitalization",
+        "expectedReturn": "12-15%",
+        "risk": "Moderate",
+        "lockIn": "None",
+        "minInvestment": 5000,
+        "expenseRatio": "1.65%",
+        "category": "Large Cap"
+      },
+      {
+        "name": "Axis Bluechip Fund",
+        "description": "Focuses on blue-chip companies with stable growth",
+        "expectedReturn": "11-14%",
+        "risk": "Moderate",
+        "lockIn": "None",
+        "minInvestment": 5000,
+        "expenseRatio": "1.75%",
+        "category": "Large Cap"
+      },
+      {
+        "name": "Mirae Asset Large Cap Fund",
+        "description": "Diversified large-cap portfolio with focus on quality",
+        "expectedReturn": "12-15%",
+        "risk": "Moderate",
+        "lockIn": "None",
+        "minInvestment": 5000,
+        "expenseRatio": "1.58%",
+        "category": "Large Cap"
+      }
+    ],
+    "Mid Cap": [
+      {
+        "name": "Kotak Emerging Equity Fund",
+        "description": "Focuses on emerging mid-sized companies with growth potential",
+        "expectedReturn": "14-18%",
+        "risk": "Moderately High",
+        "lockIn": "None",
+        "minInvestment": 5000,
+        "expenseRatio": "1.80%",
+        "category": "Mid Cap"
+      },
+      {
+        "name": "HDFC Mid-Cap Opportunities Fund",
+        "description": "Invests in mid-cap companies with long-term growth prospects",
+        "expectedReturn": "15-18%",
+        "risk": "Moderately High",
+        "lockIn": "None",
+        "minInvestment": 5000,
+        "expenseRatio": "1.85%",
+        "category": "Mid Cap"
+      },
+      {
+        "name": "Edelweiss Mid Cap Fund",
+        "description": "Focuses on quality mid-cap companies with sustainable business models",
+        "expectedReturn": "14-17%",
+        "risk": "Moderately High",
+        "lockIn": "None",
+        "minInvestment": 5000,
+        "expenseRatio": "1.90%",
+        "category": "Mid Cap"
+      }
+    ],
+    "Small Cap": [
+      {
+        "name": "Axis Small Cap Fund",
+        "description": "Invests in small-cap companies with high growth potential",
+        "expectedReturn": "16-20%",
+        "risk": "High",
+        "lockIn": "None",
+        "minInvestment": 5000,
+        "expenseRatio": "2.05%",
+        "category": "Small Cap"
+      },
+      {
+        "name": "SBI Small Cap Fund",
+        "description": "Focuses on undiscovered small-cap companies with strong fundamentals",
+        "expectedReturn": "17-22%",
+        "risk": "High",
+        "lockIn": "None",
+        "minInvestment": 5000,
+        "expenseRatio": "2.10%",
+        "category": "Small Cap"
+      },
+      {
+        "name": "Nippon India Small Cap Fund",
+        "description": "Diversified portfolio of small-cap companies across sectors",
+        "expectedReturn": "16-21%",
+        "risk": "High",
+        "lockIn": "None",
+        "minInvestment": 5000,
+        "expenseRatio": "1.98%",
+        "category": "Small Cap"
+      }
+    ],
+    "Index Funds": [
+      {
+        "name": "UTI Nifty Index Fund",
+        "description": "Tracks the Nifty 50 index",
+        "expectedReturn": "10-12%",
+        "risk": "Moderate",
+        "lockIn": "None",
+        "minInvestment": 5000,
+        "expenseRatio": "0.20%",
+        "category": "Index Funds"
+      },
+      {
+        "name": "HDFC Index Fund - Sensex Plan",
+        "description": "Tracks the BSE Sensex index",
+        "expectedReturn": "10-12%",
+        "risk": "Moderate",
+        "lockIn": "None",
+        "minInvestment": 5000,
+        "expenseRatio": "0.30%",
+        "category": "Index Funds"
+      },
+      {
+        "name": "SBI Nifty Next 50 Index Fund",
+        "description": "Tracks the Nifty Next 50 index",
+        "expectedReturn": "11-14%",
+        "risk": "Moderate",
+        "lockIn": "None",
+        "minInvestment": 5000,
+        "expenseRatio": "0.35%",
+        "category": "Index Funds"
+      }
+    ]
+  },
+  "debt": {
+    "Government Bonds": [
+      {
+        "name": "SBI Magnum Gilt Fund",
+        "description": "Invests in government securities across different maturities",
+        "expectedReturn": "6-8%",
+        "risk": "Low",
+        "lockIn": "None",
+        "minInvestment": 5000,
+        "expenseRatio": "0.68%",
+        "category": "Government Bonds"
+      },
+      {
+        "name": "HDFC Gilt Fund",
+        "description": "Invests in government securities and treasury bills",
+        "expectedReturn": "6-8%",
+        "risk": "Low",
+        "lockIn": "None",
+        "minInvestment": 5000,
+        "expenseRatio": "0.75%",
+        "category": "Government Bonds"
+      },
+      {
+        "name": "ICICI Prudential Gilt Fund",
+        "description": "Portfolio of government securities with focus on capital preservation",
+        "expectedReturn": "6-8%",
+        "risk": "Low",
+        "lockIn": "None",
+        "minInvestment": 5000,
+        "expenseRatio": "0.72%",
+        "category": "Government Bonds"
+      }
+    ],
+    "Corporate Bonds": [
+      {
+        "name": "Kotak Corporate Bond Fund",
+        "description": "Invests in high-quality corporate bonds",
+        "expectedReturn": "7-9%",
+        "risk": "Low to Moderate",
+        "lockIn": "None",
+        "minInvestment": 5000,
+        "expenseRatio": "0.55%",
+        "category": "Corporate Bonds"
+      },
+      {
+        "name": "Aditya Birla Sun Life Corporate Bond Fund",
+        "description": "Focuses on AAA and AA+ rated corporate bonds",
+        "expectedReturn": "7-9%",
+        "risk": "Low to Moderate",
+        "lockIn": "None",
+        "minInvestment": 5000,
+        "expenseRatio": "0.65%",
+        "category": "Corporate Bonds"
+      },
+      {
+        "name": "ICICI Prudential Corporate Bond Fund",
+        "description": "Invests in corporate debt securities across maturities",
+        "expectedReturn": "7-9%",
+        "risk": "Low to Moderate",
+        "lockIn": "None",
+        "minInvestment": 5000,
+        "expenseRatio": "0.60%",
+        "category": "Corporate Bonds"
+      }
+    ],
+    "Short-Term Bonds": [
+      {
+        "name": "HDFC Short Term Debt Fund",
+        "description": "Invests in short-term debt and money market instruments",
+        "expectedReturn": "6-8%",
+        "risk": "Low",
+        "lockIn": "None",
+        "minInvestment": 5000,
+        "expenseRatio": "0.50%",
+        "category": "Short-Term Bonds"
+      },
+      {
+        "name": "Axis Short Term Fund",
+        "description": "Portfolio of short-term debt securities with high credit quality",
+        "expectedReturn": "6-8%",
+        "risk": "Low",
+        "lockIn": "None",
+        "minInvestment": 5000,
+        "expenseRatio": "0.55%",
+        "category": "Short-Term Bonds"
+      },
+      {
+        "name": "Kotak Bond Short Term Fund",
+        "description": "Invests in short-term corporate bonds and debt instruments",
+        "expectedReturn": "6-8%",
+        "risk": "Low",
+        "lockIn": "None",
+        "minInvestment": 5000,
+        "expenseRatio": "0.52%",
+        "category": "Short-Term Bonds"
+      }
+    ]
+  },
+  "alternative": {
+    "Gold": [
+      {
+        "name": "SBI Gold Fund",
+        "description": "Fund of fund investing in gold ETFs",
+        "expectedReturn": "8-10%",
+        "risk": "Moderate",
+        "lockIn": "None",
+        "minInvestment": 5000,
+        "expenseRatio": "0.75%",
+        "category": "Gold"
+      },
+      {
+        "name": "Nippon India Gold Savings Fund",
+        "description": "Invests in gold through gold ETFs",
+        "expectedReturn": "8-10%",
+        "risk": "Moderate",
+        "lockIn": "None",
+        "minInvestment": 5000,
+        "expenseRatio": "0.80%",
+        "category": "Gold"
+      },
+      {
+        "name": "HDFC Gold Fund",
+        "description": "Fund of fund investing in gold ETFs for long-term capital appreciation",
+        "expectedReturn": "8-10%",
+        "risk": "Moderate",
+        "lockIn": "None",
+        "minInvestment": 5000,
+        "expenseRatio": "0.78%",
+        "category": "Gold"
+      }
+    ],
+    "REITs": [
+      {
+        "name": "Embassy Office Parks REIT",
+        "description": "India's first publicly listed REIT with premium commercial properties",
+        "expectedReturn": "8-10%",
+        "risk": "Moderate",
+        "lockIn": "None",
+        "minInvestment": 10000,
+        "expenseRatio": "N/A",
+        "category": "REITs"
+      },
+      {
+        "name": "Mindspace Business Parks REIT",
+        "description": "Portfolio of commercial properties in major Indian cities",
+        "expectedReturn": "8-10%",
+        "risk": "Moderate",
+        "lockIn": "None",
+        "minInvestment": 10000,
+        "expenseRatio": "N/A",
+        "category": "REITs"
+      },
+      {
+        "name": "Brookfield India Real Estate Trust",
+        "description": "High-quality income-producing properties with strong tenant base",
+        "expectedReturn": "8-10%",
+        "risk": "Moderate",
+        "lockIn": "None",
+        "minInvestment": 10000,
+        "expenseRatio": "N/A",
+        "category": "REITs"
+      }
+    ],
+    "International Funds": [
+      {
+        "name": "Franklin India Feeder - Franklin U.S. Opportunities Fund",
+        "description": "Invests in U.S. growth companies across sectors",
+        "expectedReturn": "12-15%",
+        "risk": "Moderately High",
+        "lockIn": "None",
+        "minInvestment": 5000,
+        "expenseRatio": "1.85%",
+        "category": "International Funds"
+      },
+      {
+        "name": "Edelweiss Greater China Equity Off-shore Fund",
+        "description": "Invests in companies in Greater China region",
+        "expectedReturn": "12-16%",
+        "risk": "High",
+        "lockIn": "None",
+        "minInvestment": 5000,
+        "expenseRatio": "1.95%",
+        "category": "International Funds"
+      },
+      {
+        "name": "Kotak Global Emerging Market Fund",
+        "description": "Diversified portfolio of companies in emerging markets",
+        "expectedReturn": "12-16%",
+        "risk": "High",
+        "lockIn": "None",
+        "minInvestment": 5000,
+        "expenseRatio": "1.90%",
+        "category": "International Funds"
+      }
+    ]
+  }
+}

@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { PageTitle } from '@/components/PageTitle';
 import { StepNavigation } from '@/components/StepNavigation';
 import { useAppContext } from '@/context/AppContext';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { getRiskAssessment } from '@/lib/api';
 import { toast } from 'sonner';
-import { ChevronRight } from 'lucide-react';
-import { Activity } from 'lucide-react';
+import { ChevronRight, Edit, Activity } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RiskAssessment } from '@/lib/types';
 
 // Import React Plotly
 import Plot from 'react-plotly.js';
@@ -16,6 +18,24 @@ export const RiskPage = () => {
   const { state, dispatch, navigateToStep } = useAppContext();
   const { clientProfile, riskAssessment } = state;
   const [loading, setLoading] = useState(false);
+  const [isEditingRiskProfile, setIsEditingRiskProfile] = useState(false);
+  const [selectedRiskProfile, setSelectedRiskProfile] = useState<string>('');
+
+  // Set initial selected risk profile based on current assessment
+  useEffect(() => {
+    if (riskAssessment) {
+      const category = riskAssessment.riskCategory;
+      if (category === 'Ultra Aggressive') {
+        setSelectedRiskProfile('ultraAggressive');
+      } else if (category === 'Aggressive') {
+        setSelectedRiskProfile('aggressive');
+      } else if (category === 'Moderate') {
+        setSelectedRiskProfile('moderate');
+      } else if (category === 'Conservative') {
+        setSelectedRiskProfile('conservative');
+      }
+    }
+  }, [riskAssessment]);
 
   useEffect(() => {
     const fetchRiskAssessment = async () => {
@@ -29,14 +49,8 @@ export const RiskPage = () => {
       // Check if we're in manual mode (by checking if manualRiskSelection exists in clientProfile)
       // Note: We added this property in our Profiling.tsx edit but it's not in the ClientProfile type
       // So we need to use a type assertion here
-      const isManualMode = clientProfile.riskTolerance.investmentKnowledge === 'manual';
-      
-      if (isManualMode) {
-        // Skip the risk assessment page and navigate directly to asset allocation
-        toast.info('Skipping risk assessment (manual mode)');
-        navigateToStep(3);
-        return;
-      }
+      // We no longer skip risk assessment regardless of manual or automated mode
+  // Always show the risk assessment to the user
 
       // Check if riskAssessment already exists
       if (riskAssessment) {
@@ -68,11 +82,8 @@ export const RiskPage = () => {
   if (!clientProfile) {
     return <LoadingSpinner message="Redirecting..." />;
   }
-
-  // Check if we're in manual mode, just in case the redirect didn't happen yet
-  if (clientProfile.riskTolerance.investmentKnowledge === 'manual') {
-    return <LoadingSpinner message="Redirecting to asset allocation..." />;
-  }
+  
+  // We no longer redirect for manual mode - always show risk assessment
 
   if (loading) {
     return <LoadingSpinner message="Analyzing risk profile..." />;
@@ -81,6 +92,77 @@ export const RiskPage = () => {
   if (!riskAssessment) {
     return <LoadingSpinner message="Processing data..." />;
   }
+
+  // Function to handle risk profile change
+  const handleRiskProfileChange = (value: string) => {
+    setSelectedRiskProfile(value);
+  };
+
+  // Function to apply the selected risk profile
+  const applyRiskProfileChange = () => {
+    let newRiskAssessment: RiskAssessment;
+
+    switch (selectedRiskProfile) {
+      case 'ultraAggressive':
+        newRiskAssessment = {
+          riskScore: 95,
+          riskCategory: 'Ultra Aggressive',
+          details: {
+            ageImpact: 0,
+            horizonImpact: 0,
+            styleImpact: 0,
+            toleranceImpact: 0,
+            explanation: 'Manually selected Ultra Aggressive risk profile'
+          }
+        };
+        break;
+      case 'aggressive':
+        newRiskAssessment = {
+          riskScore: 80,
+          riskCategory: 'Aggressive',
+          details: {
+            ageImpact: 0,
+            horizonImpact: 0,
+            styleImpact: 0,
+            toleranceImpact: 0,
+            explanation: 'Manually selected Aggressive risk profile'
+          }
+        };
+        break;
+      case 'moderate':
+        newRiskAssessment = {
+          riskScore: 60,
+          riskCategory: 'Moderate',
+          details: {
+            ageImpact: 0,
+            horizonImpact: 0,
+            styleImpact: 0,
+            toleranceImpact: 0,
+            explanation: 'Manually selected Moderate risk profile'
+          }
+        };
+        break;
+      case 'conservative':
+      default:
+        newRiskAssessment = {
+          riskScore: 35,
+          riskCategory: 'Conservative',
+          details: {
+            ageImpact: 0,
+            horizonImpact: 0,
+            styleImpact: 0,
+            toleranceImpact: 0,
+            explanation: 'Manually selected Conservative risk profile'
+          }
+        };
+        break;
+    }
+
+    // Update the risk assessment in the app context
+    dispatch({ type: 'SET_RISK_ASSESSMENT', payload: newRiskAssessment });
+    setIsEditingRiskProfile(false);
+    toast.success('Risk profile updated successfully');
+  };
 
   // Calculate gauge indicator position (0-100)
   const score = riskAssessment.riskScore;
@@ -95,12 +177,49 @@ export const RiskPage = () => {
 
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle>Risk Profile Results</CardTitle>
-          <CardDescription>
-            Based on your responses, we've analyzed your risk tolerance.
-          </CardDescription>
+          <div className="flex justify-between items-center">
+            <div>
+              <CardTitle>Risk Profile Results</CardTitle>
+              <CardDescription>
+                Based on your responses, we've analyzed your risk tolerance.
+              </CardDescription>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setIsEditingRiskProfile(!isEditingRiskProfile)}
+            >
+              <Edit className="h-4 w-4 mr-2" />
+              Change Risk Profile
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
+          {isEditingRiskProfile && (
+            <div className="mb-6 p-4 border rounded-md bg-muted/50">
+              <h3 className="font-medium mb-2">Select a Different Risk Profile</h3>
+              <div className="flex flex-col gap-4">
+                <Select
+                  value={selectedRiskProfile}
+                  onValueChange={handleRiskProfileChange}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a risk profile" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ultraAggressive">Ultra Aggressive (Highest risk, highest potential return)</SelectItem>
+                    <SelectItem value="aggressive">Aggressive (High risk, high potential return)</SelectItem>
+                    <SelectItem value="moderate">Moderate (Medium risk, medium potential return)</SelectItem>
+                    <SelectItem value="conservative">Conservative (Low risk, low potential return)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setIsEditingRiskProfile(false)}>Cancel</Button>
+                  <Button onClick={applyRiskProfileChange}>Apply Changes</Button>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="flex flex-col items-center mb-6">
             <div className="w-full h-64">
               <Plot
