@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+      import { useEffect, useState } from 'react';
 import { useAppContext } from '@/context/AppContext';
 import { getProductRecommendations, getStockCategories } from '@/lib/api';
 import { ProductRecommendations, ProductCategory, StockCategory } from '@/lib/types';
@@ -925,7 +925,7 @@ export const ProductsPage = () => {
                   <Input
                     placeholder="Search products..."
                     value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onChange={(e) => handleSearchProducts(e.target.value)}
                     className="w-full"
                   />
                 </div>
