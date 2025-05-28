@@ -382,9 +382,10 @@ const transformDataForProductRecommendations = (
   
   // Format equity allocation for the API
   const formattedEquityAllocation = {
-    mutualFunds: 60,  // Default values
-    pms: 20,
-    aif: 15,
+    mutualFunds: 40,  // Reduced to make room for listedStocks
+    listedStocks: 30, // Added listedStocks allocation
+    pms: 15,          // Reduced slightly
+    aif: 10,          // Reduced slightly
     unlistedStocks: 5
   };
   

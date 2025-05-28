@@ -608,8 +608,20 @@ export const ProposalPage = () => {
                   <h4 className="font-medium border-b pb-1">Equity ({assetAllocation.assetClassAllocation.equity}%)</h4>
                   
                   {productRecommendations.recommendations.equity && Object.entries(productRecommendations.recommendations.equity).map(([type, data]: [string, any]) => {
-                    // Skip if no products or empty array
-                    if (!data?.products || data.products.length === 0) return null;
+                    // Skip listed stocks if they should not be included
+                    if (type === 'listedStocks' && productRecommendations.stockInclusionPreferences?.includeListedStocks === false) {
+                      return null;
+                    }
+                    
+                    // Skip unlisted stocks if they should not be included
+                    if (type === 'unlistedStocks' && productRecommendations.stockInclusionPreferences?.includeUnlistedStocks === false) {
+                      return null;
+                    }
+                    
+                    // Initialize products array if it doesn't exist
+                    if (!data.products) {
+                      data.products = [];
+                    }
                     
                     const typeName = type === 'mutualFunds' ? 'Mutual Funds' : 
                                     type === 'etf' ? 'ETFs' : 
@@ -627,34 +639,41 @@ export const ProposalPage = () => {
                       <div key={type} className="bg-card rounded-lg border p-4">
                         <h5 className="font-medium text-base mb-3">{typeName}</h5>
                         <p className="text-sm text-muted-foreground mb-3">{description}</p>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm">
-                            <thead className="bg-muted/50">
-                              <tr>
-                                <th className="text-left p-2 font-medium">Name</th>
-                                <th className="text-left p-2 font-medium">Description</th>
-                                <th className="text-left p-2 font-medium">Expected Return</th>
-                                <th className="text-left p-2 font-medium">Risk Level</th>
-                                {type === 'pms' || type === 'aif' ? (
-                                  <th className="text-left p-2 font-medium">Min. Investment</th>
-                                ) : null}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {data.products.map((product: any, idx: number) => (
-                                <tr key={idx} className={idx < data.products.length - 1 ? "border-b" : ""}>
-                                  <td className="p-2">{product.name}</td>
-                                  <td className="p-2">{product.description}</td>
-                                  <td className="p-2">{product.expectedReturn}</td>
-                                  <td className="p-2">{product.risk}</td>
+                        {data.products.length > 0 ? (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead className="bg-muted/50">
+                                <tr>
+                                  <th className="text-left p-2 font-medium">Name</th>
+                                  <th className="text-left p-2 font-medium">Description</th>
+                                  <th className="text-left p-2 font-medium">Expected Return</th>
+                                  <th className="text-left p-2 font-medium">Risk Level</th>
                                   {type === 'pms' || type === 'aif' ? (
-                                    <td className="p-2">{product.minimumInvestment}</td>
+                                    <th className="text-left p-2 font-medium">Min. Investment</th>
                                   ) : null}
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
+                              </thead>
+                              <tbody>
+                                {data.products.map((product: any, idx: number) => (
+                                  <tr key={idx} className={idx < data.products.length - 1 ? "border-b" : ""}>
+                                    <td className="p-2">{product.name}</td>
+                                    <td className="p-2">{product.description}</td>
+                                    <td className="p-2">{product.expectedReturn}</td>
+                                    <td className="p-2">{product.risk}</td>
+                                    {type === 'pms' || type === 'aif' ? (
+                                      <td className="p-2">{product.minimumInvestment}</td>
+                                    ) : null}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <div className="p-4 bg-muted/30 rounded-lg text-center">
+                            <p className="text-muted-foreground">No products added to this category yet.</p>
+                            <p className="text-sm text-muted-foreground mt-1">Go to the Products page to add products.</p>
+                          </div>
+                        )}
                         {data.amount && (
                           <div className="mt-3 text-sm text-right text-muted-foreground">
                             Target Allocation: {formatIndianCurrency(data.amount)}
@@ -678,8 +697,10 @@ export const ProposalPage = () => {
                   <h4 className="font-medium border-b pb-1">Debt ({assetAllocation.assetClassAllocation.debt}%)</h4>
                   
                   {productRecommendations.recommendations.debt && Object.entries(productRecommendations.recommendations.debt).map(([type, data]: [string, any]) => {
-                    // Skip if no products or empty array
-                    if (!data?.products || data.products.length === 0) return null;
+                    // Initialize products array if it doesn't exist
+                    if (!data.products) {
+                      data.products = [];
+                    }
                     
                     const typeName = type === 'mutualFunds' ? 'Debt Mutual Funds' : 
                                     type === 'direct' ? 'Direct Bonds' : 
@@ -696,34 +717,41 @@ export const ProposalPage = () => {
                       <div key={type} className="bg-card rounded-lg border p-4">
                         <h5 className="font-medium text-base mb-3">{typeName}</h5>
                         <p className="text-sm text-muted-foreground mb-3">{description}</p>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm">
-                            <thead className="bg-muted/50">
-                              <tr>
-                                <th className="text-left p-2 font-medium">Name</th>
-                                <th className="text-left p-2 font-medium">Description</th>
-                                <th className="text-left p-2 font-medium">Expected Return</th>
-                                <th className="text-left p-2 font-medium">Risk Level</th>
-                                {type === 'aif' ? (
-                                  <th className="text-left p-2 font-medium">Min. Investment</th>
-                                ) : null}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {data.products.map((product: any, idx: number) => (
-                                <tr key={idx} className={idx < data.products.length - 1 ? "border-b" : ""}>
-                                  <td className="p-2">{product.name}</td>
-                                  <td className="p-2">{product.description}</td>
-                                  <td className="p-2">{product.expectedReturn}</td>
-                                  <td className="p-2">{product.risk}</td>
+                        {data.products.length > 0 ? (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead className="bg-muted/50">
+                                <tr>
+                                  <th className="text-left p-2 font-medium">Name</th>
+                                  <th className="text-left p-2 font-medium">Description</th>
+                                  <th className="text-left p-2 font-medium">Expected Return</th>
+                                  <th className="text-left p-2 font-medium">Risk Level</th>
                                   {type === 'aif' ? (
-                                    <td className="p-2">{product.minimumInvestment}</td>
+                                    <th className="text-left p-2 font-medium">Min. Investment</th>
                                   ) : null}
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
+                              </thead>
+                              <tbody>
+                                {data.products.map((product: any, idx: number) => (
+                                  <tr key={idx} className={idx < data.products.length - 1 ? "border-b" : ""}>
+                                    <td className="p-2">{product.name}</td>
+                                    <td className="p-2">{product.description}</td>
+                                    <td className="p-2">{product.expectedReturn}</td>
+                                    <td className="p-2">{product.risk}</td>
+                                    {type === 'aif' ? (
+                                      <td className="p-2">{product.minimumInvestment}</td>
+                                    ) : null}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <div className="p-4 bg-muted/30 rounded-lg text-center">
+                            <p className="text-muted-foreground">No products added to this category yet.</p>
+                            <p className="text-sm text-muted-foreground mt-1">Go to the Products page to add products.</p>
+                          </div>
+                        )}
                         {data.amount && (
                           <div className="mt-3 text-sm text-right text-muted-foreground">
                             Target Allocation: {formatIndianCurrency(data.amount)}

@@ -89,6 +89,10 @@ export interface ProductRecommendations {
     alternative?: Record<string, ProductCategory>;
     goldSilver?: Record<string, ProductCategory>;
   };
+  stockInclusionPreferences?: {
+    includeListedStocks: boolean;
+    includeUnlistedStocks: boolean;
+  };
 }
 
 export interface InvestmentProposal {

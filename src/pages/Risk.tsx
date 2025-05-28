@@ -230,7 +230,7 @@ export const RiskPage = () => {
                     value: score,
                     title: { text: `Risk Score: ${riskAssessment.riskCategory}` },
                     gauge: {
-                      axis: { range: [0, 100] },
+                      axis: { range: [0, 30] },
                       bar: { color: '#3B82F6' },
                       steps: [
                         { range: [0, 30], color: '#E0F2FE' },

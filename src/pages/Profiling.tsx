@@ -103,12 +103,35 @@ const isProfileComplete = (data: any): boolean => {
 };
 
 export const ProfilingPage = () => {
-  const { state, dispatch } = useAppContext();
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [validationSchema] = useState(() => createValidationSchema());
+  const { state, dispatch, navigateToStep } = useAppContext();
   const [activeStep, setActiveStep] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasSkippedSections, setHasSkippedSections] = useState(false);
+  const [skippedSections, setSkippedSections] = useState<number[]>([]);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isLoadProfileDialogOpen, setIsLoadProfileDialogOpen] = useState(false);
+  
+  // Define existing product options
+  const existingProductOptions = [
+    { id: 'mutualFunds', label: 'Mutual Funds' },
+    { id: 'stocks', label: 'Stocks' },
+    { id: 'fixedDeposits', label: 'Fixed Deposits' },
+    { id: 'insurance', label: 'Insurance' },
+    { id: 'ppf', label: 'PPF' },
+    { id: 'realEstate', label: 'Real Estate' },
+    { id: 'gold', label: 'Gold' },
+    { id: 'bonds', label: 'Bonds' }
+  ];
+  
+  // Define primary goal options
+  const primaryGoalOptions = [
+    { id: 'retirement', label: 'Retirement' },
+    { id: 'childEducation', label: 'Child Education' },
+    { id: 'homePurchase', label: 'Home Purchase' },
+    { id: 'wealthCreation', label: 'Wealth Creation' },
+    { id: 'taxSaving', label: 'Tax Saving' },
+    { id: 'regularIncome', label: 'Regular Income' }
+  ];
   
   // Define the steps for the profiling process - dynamic based on whether sections were skipped
   const getSteps = () => {
@@ -258,7 +281,8 @@ export const ProfilingPage = () => {
     toast.info(`${skippedSectionTitle} section skipped. This will result in manual profiling.`);
   };
   
-  const form = useForm<z.infer<typeof validationSchema>>({
+  const validationSchema = createValidationSchema();
+  const form = useForm<FormData>({
     resolver: zodResolver(validationSchema),
     defaultValues: state.clientProfile || {
       personal: {
@@ -295,6 +319,30 @@ export const ProfilingPage = () => {
       manualRiskSelection: '',
     },
   });
+  
+  // Function to handle investment product change
+  const handleInvestmentProductChange = (productId: string, checked: boolean | string) => {
+    const currentProducts = form.getValues('financial.existingProducts') || [];
+    if (checked === true || checked === 'true' || checked === 'indeterminate') {
+      form.setValue('financial.existingProducts', [...currentProducts, productId]);
+    } else {
+      form.setValue('financial.existingProducts', 
+        currentProducts.filter((id: string) => id !== productId)
+      );
+    }
+  };
+  
+  // Function to handle primary goal change
+  const handlePrimaryGoalChange = (goalId: string, checked: boolean | string) => {
+    const currentGoals = form.getValues('investment.primaryGoals') || [];
+    if (checked === true || checked === 'true' || checked === 'indeterminate') {
+      form.setValue('investment.primaryGoals', [...currentGoals, goalId]);
+    } else {
+      form.setValue('investment.primaryGoals', 
+        currentGoals.filter((id: string) => id !== goalId)
+      );
+    }
+  };
 
   // Pre-populate form with test data when the component mounts if clientProfile exists
   useEffect(() => {
@@ -636,12 +684,18 @@ export const ProfilingPage = () => {
 
           {/* Personal Information Section */}
           {activeStep === 0 && (
-          <Card>
+          <Card className="w-full mb-6">
             <CardHeader>
-              <CardTitle>Personal Information</CardTitle>
-              <CardDescription>Basic details about the client</CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                <User className="h-5 w-5" />
+                Personal Information
+              </CardTitle>
+              <CardDescription>
+                Basic details about the client
+              </CardDescription>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField
                 control={form.control}
                 name="personal.name"
@@ -787,29 +841,30 @@ export const ProfilingPage = () => {
                       Number of Dependents
                     </FormLabel>
                     <FormControl>
-                      <Input 
-                        type="number" 
-                        placeholder="Dependents" 
-                        {...field} 
-                        onChange={(e) => field.onChange(e.target.valueAsNumber || 0)} 
-                      />
+                      <Input type="number" {...field} onChange={(e) => field.onChange(Number(e.target.value))} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-            </CardContent>
+            </div>
+          </CardContent>
           </Card>
           )}
 
           {/* Financial Situation Section */}
           {activeStep === 1 && (
-          <Card>
+          <Card className="w-full mb-6">
             <CardHeader>
-              <CardTitle>Financial Situation</CardTitle>
-              <CardDescription>Current financial status and holdings</CardDescription>
+              <CardTitle>
+                Financial Situation
+              </CardTitle>
+              <CardDescription>
+                Current financial status and existing investments
+              </CardDescription>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField
                 control={form.control}
                 name="financial.currentInvestments"
@@ -948,113 +1003,87 @@ export const ProfilingPage = () => {
               <FormField
                 control={form.control}
                 name="financial.existingProducts"
-                render={() => (
+                render={({ field }) => (
                   <FormItem className="col-span-1 md:col-span-2">
                     <div className="mb-4">
-                      <FormLabel>
-                        Existing Investment Products
-                      </FormLabel>
+                      <FormLabel>Existing Investment Products</FormLabel>
                       <FormDescription>
-                        Select all products that the client currently holds.
+                        Select all that apply
                       </FormDescription>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                      {['Mutual Funds', 'Stocks', 'Fixed Deposits', 'Insurance', 'PPF', 'Real Estate', 'Gold', 'Bonds'].map((product) => (
-                        <FormField
-                          key={product}
-                          control={form.control}
-                          name="financial.existingProducts"
-                          render={({ field }) => {
-                            return (
-                              <FormItem
-                                key={product}
-                                className="flex flex-row items-start space-x-3 space-y-0"
-                              >
-                                <FormControl>
-                                  <Checkbox
-                                    checked={field.value?.includes(product)}
-                                    onCheckedChange={(checked) => {
-                                      return checked
-                                        ? field.onChange([...field.value, product])
-                                        : field.onChange(
-                                            field.value?.filter(
-                                              (value) => value !== product
-                                            )
-                                          )
-                                    }}
-                                  />
-                                </FormControl>
-                                <FormLabel className="font-normal">
-                                  {product}
-                                </FormLabel>
-                              </FormItem>
-                            )
-                          }}
-                        />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {existingProductOptions.map((product) => (
+                        <FormItem
+                          key={product.id}
+                          className="flex flex-row items-start space-x-3 space-y-0"
+                        >
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value?.includes(product.id)}
+                              onCheckedChange={(checked) => {
+                                return handleInvestmentProductChange(product.id, checked);
+                              }}
+                            />
+                          </FormControl>
+                          <FormLabel className="font-normal">
+                            {product.label}
+                          </FormLabel>
+                        </FormItem>
                       ))}
                     </div>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-            </CardContent>
+            </div>
+          </CardContent>
           </Card>
           )}
 
           {/* Investment Objectives Section */}
           {activeStep === 2 && (
-          <Card>
+          <Card className="w-full mb-6">
             <CardHeader>
-              <CardTitle>Investment Objectives</CardTitle>
-              <CardDescription>Goals and preferences for this investment</CardDescription>
+              <CardTitle>
+                Investment Objectives
+              </CardTitle>
+              <CardDescription>
+                Goals and preferences for investments
+              </CardDescription>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField
                 control={form.control}
                 name="investment.primaryGoals"
-                render={() => (
+                render={({ field }) => (
                   <FormItem className="col-span-1 md:col-span-2">
                     <div className="mb-4">
-                      <FormLabel>
-                        Primary Investment Goals
+                      <FormLabel className="flex">
+                        Primary Investment Goals <span className="text-red-500 ml-1">*</span>
                       </FormLabel>
                       <FormDescription>
-                        Select the main objectives for this investment.
+                        Select all that apply
                       </FormDescription>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                      {['Retirement', 'Child Education', 'Home Purchase', 'Wealth Creation', 'Tax Saving', 'Regular Income'].map((goal) => (
-                        <FormField
-                          key={goal}
-                          control={form.control}
-                          name="investment.primaryGoals"
-                          render={({ field }) => {
-                            return (
-                              <FormItem
-                                key={goal}
-                                className="flex flex-row items-start space-x-3 space-y-0"
-                              >
-                                <FormControl>
-                                  <Checkbox
-                                    checked={field.value?.includes(goal)}
-                                    onCheckedChange={(checked) => {
-                                      return checked
-                                        ? field.onChange([...field.value, goal])
-                                        : field.onChange(
-                                            field.value?.filter(
-                                              (value) => value !== goal
-                                            )
-                                          )
-                                    }}
-                                  />
-                                </FormControl>
-                                <FormLabel className="font-normal">
-                                  {goal}
-                                </FormLabel>
-                              </FormItem>
-                            )
-                          }}
-                        />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {primaryGoalOptions.map((goal) => (
+                        <FormItem
+                          key={goal.id}
+                          className="flex flex-row items-start space-x-3 space-y-0"
+                        >
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value?.includes(goal.id)}
+                              onCheckedChange={(checked) => {
+                                return handlePrimaryGoalChange(goal.id, checked);
+                              }}
+                            />
+                          </FormControl>
+                          <FormLabel className="font-normal">
+                            {goal.label}
+                          </FormLabel>
+                        </FormItem>
                       ))}
                     </div>
                     <FormMessage />
@@ -1140,73 +1169,24 @@ export const ProfilingPage = () => {
                   </FormItem>
                 )}
               />
-            </CardContent>
+            </div>
+          </CardContent>
           </Card>
-          )}
-
-          {/* Risk Profile Selection - only shown if sections were skipped */}
-          {hasSkippedSections && activeStep === 3 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Risk Profile Selection</CardTitle>
-              <CardDescription>Select your preferred risk profile</CardDescription>
-            </CardHeader>
-              <CardContent>
-                <FormField
-                  control={form.control}
-                  name="manualRiskSelection"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex">
-                        Risk Profile: <span className="text-red-500 ml-1">*</span>
-                      </FormLabel>
-                      <Select 
-                        onValueChange={field.onChange} 
-                        value={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select risk profile" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="ultraAggressive">Ultra Aggressive (Highest risk, highest potential return)</SelectItem>
-                          <SelectItem value="aggressive">Aggressive (High risk, high potential return)</SelectItem>
-                          <SelectItem value="moderate">Moderate (Medium risk, medium potential return)</SelectItem>
-                          <SelectItem value="conservative">Conservative (Low risk, low potential return)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormDescription>
-                        This will determine your asset allocation and product recommendations
-                      </FormDescription>
-                      <FormMessage />
-                      
-                      {field.value && (
-                        <div className="mt-4">
-                          <Button 
-                            type="button" 
-                            onClick={() => handleSubmitForm()}
-                            className="w-full"
-                          >
-                            Continue to Risk Assessment
-                          </Button>
-                        </div>
-                      )}
-                    </FormItem>
-                  )}
-                />
-              </CardContent>
-            </Card>
           )}
 
           {/* Risk Tolerance Section */}
           {((!hasSkippedSections && activeStep === 3) || (hasSkippedSections && activeStep === 4)) && (
-          <Card>
+          <Card className="w-full mb-6">
             <CardHeader>
-              <CardTitle>Risk Tolerance</CardTitle>
-              <CardDescription>Understanding your comfort with investment risk</CardDescription>
+              <CardTitle>
+                Risk Tolerance
+              </CardTitle>
+              <CardDescription>
+                Comfort level with investment risk
+              </CardDescription>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 gap-6">
               <FormField
                 control={form.control}
                 name="riskTolerance.marketDropReaction"
@@ -1315,28 +1295,31 @@ export const ProfilingPage = () => {
                     </FormItem>
                   )}
                 />
+              </div>
             </CardContent>
           </Card>
           )}
 
           {/* Navigation buttons */}
-          <div className="flex justify-between mt-6">
+          <div className="flex flex-col sm:flex-row justify-between mt-6 gap-4">
             <Button
               type="button"
               variant="outline"
               onClick={handlePrevStep}
               disabled={activeStep === 0}
+              className="w-full sm:w-auto"
             >
               Previous
             </Button>
             
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
               {/* Skip button - not shown on Personal Information or Risk Profile Selection step */}
               {!(activeStep === 0 || (hasSkippedSections && activeStep === 3)) && (
                 <Button 
                   type="button" 
                   variant="secondary"
                   onClick={handleSkipSection}
+                  className="w-full sm:w-auto"
                 >
                   Skip
                 </Button>
@@ -1347,6 +1330,7 @@ export const ProfilingPage = () => {
                   type="button" 
                   onClick={handleNextStep}
                   disabled={hasSkippedSections && activeStep === 3} /* Disable Next button on Risk Profile Selection */
+                  className="w-full sm:w-auto"
                 >
                   Next
                 </Button>
@@ -1354,6 +1338,7 @@ export const ProfilingPage = () => {
                 <Button 
                   type="submit" 
                   disabled={isSubmitting}
+                  className="w-full sm:w-auto"
                 >
                   Submit & Continue
                 </Button>

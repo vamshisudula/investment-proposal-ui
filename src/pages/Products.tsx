@@ -1,7 +1,25 @@
 import { useEffect, useState } from 'react';
 import { useAppContext } from '@/context/AppContext';
 import { getProductRecommendations, getStockCategories } from '@/lib/api';
-import { ProductRecommendations, ProductRecommendation, ProductCategory, StockCategory } from '@/lib/types';
+import { ProductRecommendations, ProductCategory, StockCategory } from '@/lib/types';
+
+// Extended type to include stock inclusion preferences
+interface StockInclusionPreferences {
+  includeListedStocks: boolean;
+  includeUnlistedStocks: boolean;
+}
+
+// Extended ProductRecommendation type to include dataSource
+interface ProductRecommendation {
+  name: string;
+  description: string;
+  expectedReturn: string;
+  risk: string;
+  lockInPeriod?: string;
+  minInvestment?: number;
+  category?: string;
+  dataSource?: string;
+}
 import { PageTitle } from '@/components/PageTitle';
 import { StepNavigation } from '@/components/StepNavigation';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
@@ -12,9 +30,13 @@ import { formatIndianCurrency } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Pencil, Plus, Trash2, Loader2 } from 'lucide-react';
-import { AddProductDialog } from '@/components/AddProductDialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { Pencil, Plus, Trash2, Loader2, ChevronDown, AlertCircle, CheckCircle } from 'lucide-react';
+import { getProductsByCategory, getProductCategories, getAssetClassForCategory } from '@/lib/productUtils';
 
 export const ProductsPage = () => {
   const { state, dispatch } = useAppContext();
@@ -22,6 +44,15 @@ export const ProductsPage = () => {
   const { clientProfile, riskAssessment, assetAllocation } = state;
   const [stockCategories, setStockCategories] = useState<StockCategory[]>([]);
   const [stockCategoriesLoading, setStockCategoriesLoading] = useState(false);
+  const [apiDataStatus, setApiDataStatus] = useState<{
+    listedStocks: 'loading' | 'success' | 'error' | 'fallback';
+    mutualFunds: 'loading' | 'success' | 'error' | 'fallback';
+    message: string;
+  }>({
+    listedStocks: 'loading',
+    mutualFunds: 'loading',
+    message: 'Loading product recommendations...'
+  });
   
   // State for editing products
   const [editingProduct, setEditingProduct] = useState<ProductRecommendation | null>(null);
@@ -31,7 +62,40 @@ export const ProductsPage = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditSummaryOpen, setIsEditSummaryOpen] = useState(false);
   const [editedSummary, setEditedSummary] = useState('');
-  const [isAddMoreProductsOpen, setIsAddMoreProductsOpen] = useState(false);
+  
+  // State for catalog popup
+  const [isCatalogPopupOpen, setIsCatalogPopupOpen] = useState(false);
+  const [catalogProductType, setCatalogProductType] = useState<string>('');
+  const [catalogAssetClass, setCatalogAssetClass] = useState<'equity' | 'debt'>('equity');
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [filteredProducts, setFilteredProducts] = useState<ProductRecommendation[]>([]);
+  
+  // State for create category dialog
+  const [isCreateCategoryOpen, setIsCreateCategoryOpen] = useState(false);
+  const [selectedCategoryOption, setSelectedCategoryOption] = useState<string>('');
+  
+  // State for stock inclusion preferences
+  const [includeListedStocks, setIncludeListedStocks] = useState<boolean>(true);
+  const [includeUnlistedStocks, setIncludeUnlistedStocks] = useState<boolean>(true);
+  
+  // Effect to load stock inclusion preferences from state if available
+  useEffect(() => {
+    if (state.productRecommendations?.stockInclusionPreferences) {
+      const { includeListedStocks: listed, includeUnlistedStocks: unlisted } = state.productRecommendations.stockInclusionPreferences;
+      setIncludeListedStocks(listed);
+      setIncludeUnlistedStocks(unlisted);
+    }
+  }, [state.productRecommendations]);
+  
+  // Combined category options with asset class info
+  const categoryOptions = [
+    { value: 'equity-aif', label: 'Equity AIF', assetClass: 'equity', category: 'aif' },
+    { value: 'equity-pms', label: 'Equity PMS', assetClass: 'equity', category: 'pms' },
+    { value: 'equity-mutualFunds', label: 'Equity Mutual Funds', assetClass: 'equity', category: 'mutualFunds' },
+    { value: 'debt-mutualFunds', label: 'Debt Mutual Funds', assetClass: 'debt', category: 'mutualFunds' },
+    { value: 'debt-aif', label: 'Debt AIF', assetClass: 'debt', category: 'aif' },
+    { value: 'debt-direct', label: 'Direct Debt', assetClass: 'debt', category: 'direct' }
+  ];
 
   // Handler functions for editing products
   const handleEditProduct = (product: ProductRecommendation, productType: string, assetClass: 'equity' | 'debt' | 'goldSilver') => {
@@ -134,6 +198,26 @@ export const ProductsPage = () => {
     setIsEditSummaryOpen(false);
     toast.success("Summary updated successfully");
   };
+
+  const handleSaveAndContinue = () => {
+    if (!state.productRecommendations) return;
+    
+    // Save the stock inclusion preferences
+    const updatedRecommendations = { ...state.productRecommendations };
+    
+    // Add stock inclusion preferences to the product recommendations
+    updatedRecommendations.stockInclusionPreferences = {
+      includeListedStocks,
+      includeUnlistedStocks
+    };
+    
+    // Update the product recommendations
+    dispatch({ type: 'SET_PRODUCT_RECOMMENDATIONS', payload: updatedRecommendations });
+    
+    // Navigate to the next step
+    dispatch({ type: 'SET_STEP', payload: 5 });
+  };
+
   
   // Handler for adding products from the product catalog
   const handleAddMoreProduct = (product: ProductRecommendation, category: string, assetClass: 'equity' | 'debt' | 'alternative') => {
@@ -175,6 +259,177 @@ export const ProductsPage = () => {
     toast.success(`Added ${product.name} to your recommendations`);
   };
 
+  // Handler for adding products from catalog to specific product type
+  const handleAddProductFromCatalog = (productName: string, productType: string, assetClass: 'equity' | 'debt') => {
+    if (!state.productRecommendations) return;
+    
+    // Get all available categories and find the product
+    const allCategories = getProductCategories();
+    let foundProduct: ProductRecommendation | null = null;
+    let foundCategory = '';
+    
+    for (const category of allCategories) {
+      const categoryProducts = getProductsByCategory(category);
+      const product = categoryProducts.find(p => p.name === productName);
+      if (product) {
+        foundProduct = product;
+        foundCategory = category;
+        break;
+      }
+    }
+    
+    if (!foundProduct) {
+      toast.error("Product not found in catalog");
+      return;
+    }
+    
+    const updatedRecommendations = { ...state.productRecommendations };
+    
+    // Ensure the product type exists
+    if (!updatedRecommendations.recommendations[assetClass][productType]) {
+      updatedRecommendations.recommendations[assetClass][productType] = {
+        products: [],
+        allocation: 50 // Default allocation percentage
+      };
+    }
+    
+    // Check if product already exists
+    const existingProductIndex = updatedRecommendations.recommendations[assetClass][productType].products
+      .findIndex(p => p.name === foundProduct!.name);
+    
+    if (existingProductIndex >= 0) {
+      toast.error("This product is already in your recommendations");
+      return;
+    }
+    
+    // Add the product
+    updatedRecommendations.recommendations[assetClass][productType].products.push(foundProduct);
+    
+    dispatch({ type: 'SET_PRODUCT_RECOMMENDATIONS', payload: updatedRecommendations });
+    toast.success(`Added ${foundProduct.name} to ${productType}`);
+  };
+
+  // Get available products for a specific asset class that aren't already added to a product type
+  const getAvailableProductsForType = (productType: string, assetClass: 'equity' | 'debt') => {
+    const allCategories = getProductCategories();
+    const availableProducts: ProductRecommendation[] = [];
+    
+    // Get products from categories that match the asset class
+    for (const category of allCategories) {
+      const categoryAssetClass = getAssetClassForCategory(category);
+      if (categoryAssetClass === assetClass) {
+        const categoryProducts = getProductsByCategory(category);
+        availableProducts.push(...categoryProducts);
+      }
+    }
+    
+    // Filter out products that are already in this product type
+    const existingProducts = state.productRecommendations?.recommendations[assetClass][productType]?.products || [];
+    const existingProductNames = existingProducts.map(p => p.name);
+    
+    return availableProducts.filter(product => !existingProductNames.includes(product.name));
+  };
+
+  // Handler to open catalog popup
+  const handleOpenCatalogPopup = (productType: string, assetClass: 'equity' | 'debt') => {
+    setCatalogProductType(productType);
+    setCatalogAssetClass(assetClass);
+    setSearchTerm('');
+    const availableProducts = getAvailableProductsForType(productType, assetClass);
+    setFilteredProducts(availableProducts);
+    setIsCatalogPopupOpen(true);
+  };
+
+  // Handler for search functionality
+  const handleSearchProducts = (term: string) => {
+    setSearchTerm(term);
+    const availableProducts = getAvailableProductsForType(catalogProductType, catalogAssetClass);
+    
+    if (!term.trim()) {
+      setFilteredProducts(availableProducts);
+      return;
+    }
+    
+    const filtered = availableProducts.filter(product => 
+      product.name.toLowerCase().includes(term.toLowerCase()) ||
+      product.description.toLowerCase().includes(term.toLowerCase()) ||
+      product.risk.toLowerCase().includes(term.toLowerCase()) ||
+      product.expectedReturn.toLowerCase().includes(term.toLowerCase()) ||
+      (product.category && product.category.toLowerCase().includes(term.toLowerCase()))
+    );
+    
+    setFilteredProducts(filtered);
+  };
+
+  // Handler to create new product category
+  const handleCreateCategory = () => {
+    console.log('Create category clicked with option:', selectedCategoryOption);
+    console.log('Current state.productRecommendations:', state.productRecommendations);
+    
+    if (!selectedCategoryOption) {
+      toast.error("Please select a category");
+      return;
+    }
+    
+    if (!state.productRecommendations) {
+      toast.error("Product recommendations not initialized");
+      return;
+    }
+    
+    // Find the selected option from categoryOptions
+    const selectedOption = categoryOptions.find(option => option.value === selectedCategoryOption);
+    if (!selectedOption) {
+      toast.error("Please select a valid category");
+      return;
+    }
+    
+    const { assetClass, category, label } = selectedOption;
+    console.log('Selected category details:', { assetClass, category, label });
+    
+    // Create a deep copy of the recommendations
+    const updatedRecommendations = JSON.parse(JSON.stringify(state.productRecommendations));
+    
+    // Ensure recommendations structure exists
+    if (!updatedRecommendations.recommendations) {
+      console.log('Creating recommendations structure');
+      updatedRecommendations.recommendations = {
+        equity: {},
+        debt: {}
+      };
+    }
+    
+    // Ensure the asset class exists
+    if (!updatedRecommendations.recommendations[assetClass]) {
+      console.log(`Creating ${assetClass} asset class`);
+      updatedRecommendations.recommendations[assetClass] = {};
+    }
+    
+    // Check if category already exists
+    if (updatedRecommendations.recommendations[assetClass][category]) {
+      toast.error("This category already exists");
+      return;
+    }
+    
+    // Create the new category
+    console.log(`Adding new category ${category} to ${assetClass}`);
+    updatedRecommendations.recommendations[assetClass][category] = {
+      products: [],
+      allocation: 10 // Default allocation percentage
+    };
+    
+    console.log('Final updated recommendations:', updatedRecommendations);
+    
+    // Update the state
+    dispatch({ type: 'SET_PRODUCT_RECOMMENDATIONS', payload: updatedRecommendations });
+    
+    // Close the dialog and reset the selection
+    setIsCreateCategoryOpen(false);
+    setSelectedCategoryOption('');
+    
+    // Show success message
+    toast.success(`Created new category: ${label}`);
+  };
+
   // Fetch stock categories data from API
   useEffect(() => {
     const fetchStockCategoriesData = async () => {
@@ -187,14 +442,23 @@ export const ProductsPage = () => {
           console.log('Number of stock categories:', response.data.length);
         } else {
           console.error('Failed to load stock categories data');
+          setApiDataStatus(prevStatus => ({
+            ...prevStatus,
+            listedStocks: 'error',
+            message: 'Failed to load stock categories data. Using fallback data.'
+          }));
         }
       } catch (error) {
         console.error('Error fetching stock categories data:', error);
+        setApiDataStatus(prevStatus => ({
+          ...prevStatus,
+          listedStocks: 'error',
+          message: 'Error fetching stock categories data. Using fallback data.'
+        }));
       } finally {
         setStockCategoriesLoading(false);
       }
     };
-
     fetchStockCategoriesData();
   }, []);
 
@@ -212,6 +476,12 @@ export const ProductsPage = () => {
 
   const loadProductRecommendations = async () => {
     setIsLoading(true);
+    setApiDataStatus({
+      listedStocks: 'loading',
+      mutualFunds: 'loading',
+      message: 'Fetching product recommendations from API...'
+    });
+    
     try {
       console.log('Fetching product recommendations with:', {
         clientProfile,
@@ -229,16 +499,46 @@ export const ProductsPage = () => {
       console.log('Product recommendations response:', response);
       
       // Handle the response data properly
-      if (response.success) {
+      if (response.success && response.productRecommendations) {
         let validRecommendations = response.productRecommendations;
         
-        // If recommendations property is missing, create a default structure
+        // Validate and enhance the recommendations structure
         if (!validRecommendations.recommendations) {
           console.warn('Creating default recommendations structure');
-          // Create stock category products based on fetched stock categories
-          console.log('Creating stock category products from:', stockCategories);
-          const stockCategoryProducts = stockCategories.map(category => {
-            const product = {
+          validRecommendations.recommendations = {
+            equity: {},
+            debt: {}
+          };
+        }
+        
+        // Check if we have equity recommendations
+        if (!validRecommendations.recommendations.equity) {
+          validRecommendations.recommendations.equity = {};
+        }
+        
+        // Check if we have debt recommendations
+        if (!validRecommendations.recommendations.debt) {
+          validRecommendations.recommendations.debt = {};
+        }
+        
+        // Validate listedStocks data from API
+        let listedStocksStatus: 'loading' | 'success' | 'error' | 'fallback' = 'fallback';
+        let mutualFundsStatus: 'loading' | 'success' | 'error' | 'fallback' = 'fallback';
+        
+        // First check if we have real stock data from the API
+        if (validRecommendations.recommendations.equity.listedStocks && 
+            validRecommendations.recommendations.equity.listedStocks.products &&
+            validRecommendations.recommendations.equity.listedStocks.products.length > 0) {
+          listedStocksStatus = 'success';
+          console.log('✅ Listed Stocks data received from API:', validRecommendations.recommendations.equity.listedStocks.products.length, 'products');
+        } else {
+          // If no API data, check if we have stock categories from the stock categories API
+          if (stockCategories.length > 0) {
+            console.log('⚠️ No Listed Stocks data from API, using stock categories API data');
+            listedStocksStatus = 'success'; // Still mark as success since we're using real API data
+            
+            // Create stock products based on real stock categories from API
+            const stockCategoryProducts = stockCategories.length > 0 ? stockCategories.map(category => ({
               name: `${category.name} Stock`,
               description: `Listed equity in ${category.name} category`,
               expectedReturn: category.code === 'LACAP' ? '10-12%' : 
@@ -248,43 +548,55 @@ export const ProductsPage = () => {
                    category.code === 'MIDCAP' ? 'Moderate-High' : 
                    category.code === 'SMCAP' ? 'High' : 'Very High',
               category: category.name,
-              minInvestment: 10000
+              minInvestment: 10000,
+              dataSource: 'Stock Categories API'
+            })) : [];
+            
+            validRecommendations.recommendations.equity.listedStocks = {
+              products: stockCategoryProducts,
+              allocation: 40
             };
-            console.log('Created product:', product);
-            return product;
-          });
-          console.log('Final stock category products:', stockCategoryProducts);
-          
-          validRecommendations = {
-            ...validRecommendations,
-            recommendations: {
-              equity: {
-                mutualFunds: {
-                  products: [
-                    { name: 'Multi Cap Fund C', description: 'Diversified across market caps', expectedReturn: '12-14%', risk: 'Moderate', minInvestment: 5000 },
-                    { name: 'Focused Equity Fund D', description: 'Concentrated portfolio of 25-30 stocks', expectedReturn: '13-15%', risk: 'Moderate-High', minInvestment: 5000 }
-                  ],
-                  allocation: 60
-                },
-                listedStocks: {
-                  products: stockCategoryProducts.length > 0 ? stockCategoryProducts : [
-                    { name: 'Large Cap Stock', description: 'Listed equity in large cap category', expectedReturn: '10-12%', risk: 'Moderate', category: 'Large Cap', minInvestment: 10000 },
-                    { name: 'Mid Cap Stock', description: 'Listed equity in mid cap category', expectedReturn: '12-15%', risk: 'Moderate-High', category: 'Mid Cap', minInvestment: 10000 },
-                    { name: 'Small Cap Stock', description: 'Listed equity in small cap category', expectedReturn: '15-18%', risk: 'High', category: 'Small Cap', minInvestment: 10000 }
-                  ],
-                  allocation: 40
-                }
-              },
-              debt: {
-                mutualFunds: {
-                  products: [
-                    { name: 'Short Duration Fund P', description: 'Moderate risk, good returns', expectedReturn: '7-8%', risk: 'Low-Moderate', minInvestment: 5000 },
-                    { name: 'Corporate Bond Fund Q', description: 'Focus on high-quality corporate bonds', expectedReturn: '7.5-8.5%', risk: 'Moderate', minInvestment: 5000 }
-                  ],
-                  allocation: 100
-                }
-              }
-            }
+          } else {
+            // Last resort - use hardcoded fallback data
+            console.warn('⚠️ No stock data available from any API, using fallback data');
+            listedStocksStatus = 'fallback';
+            
+            validRecommendations.recommendations.equity.listedStocks = {
+              products: [
+                { name: 'Large Cap Stock', description: 'Listed equity in large cap category', expectedReturn: '10-12%', risk: 'Moderate', category: 'Large Cap', minInvestment: 10000, dataSource: 'Fallback Data' },
+                { name: 'Mid Cap Stock', description: 'Listed equity in mid cap category', expectedReturn: '12-15%', risk: 'Moderate-High', category: 'Mid Cap', minInvestment: 10000, dataSource: 'Fallback Data' },
+                { name: 'Small Cap Stock', description: 'Listed equity in small cap category', expectedReturn: '15-18%', risk: 'High', category: 'Small Cap', minInvestment: 10000, dataSource: 'Fallback Data' }
+              ],
+              allocation: 40
+            };
+          }
+        }  
+        
+        // Validate mutual funds data from API
+        if (validRecommendations.recommendations.equity.mutualFunds && 
+            validRecommendations.recommendations.equity.mutualFunds.products &&
+            validRecommendations.recommendations.equity.mutualFunds.products.length > 0) {
+          mutualFundsStatus = 'success';
+          console.log('✅ Mutual Funds data received from API:', validRecommendations.recommendations.equity.mutualFunds.products.length, 'products');
+        } else {
+          console.warn('⚠️ No Mutual Funds data from API, creating fallback data');
+          validRecommendations.recommendations.equity.mutualFunds = {
+            products: [
+              { name: 'Multi Cap Fund C', description: 'Diversified across market caps', expectedReturn: '12-14%', risk: 'Moderate', minInvestment: 5000 },
+              { name: 'Focused Equity Fund D', description: 'Concentrated portfolio of 25-30 stocks', expectedReturn: '13-15%', risk: 'Moderate-High', minInvestment: 5000 }
+            ],
+            allocation: 60
+          };
+        }
+        
+        // Ensure debt recommendations exist
+        if (!validRecommendations.recommendations.debt.mutualFunds) {
+          validRecommendations.recommendations.debt.mutualFunds = {
+            products: [
+              { name: 'Short Duration Fund P', description: 'Moderate risk, good returns', expectedReturn: '7-8%', risk: 'Low-Moderate', minInvestment: 5000 },
+              { name: 'Corporate Bond Fund Q', description: 'Focus on high-quality corporate bonds', expectedReturn: '7.5-8.5%', risk: 'Moderate', minInvestment: 5000 }
+            ],
+            allocation: 100
           };
         }
         
@@ -293,57 +605,35 @@ export const ProductsPage = () => {
           validRecommendations.recommendationSummary = `Based on your ${riskAssessment.riskCategory} risk profile, we have recommended a diversified portfolio of investment products.`;
         }
         
-        // Log the structure to help debug
+        // Update status
+        setApiDataStatus({
+          listedStocks: listedStocksStatus,
+          mutualFunds: mutualFundsStatus,
+          message: listedStocksStatus === 'success' && mutualFundsStatus === 'success' ? 
+            'All product data loaded successfully from API' :
+            'Product data loaded with some fallback data'
+        });
+        
         console.log('Final product recommendations structure:', JSON.stringify(validRecommendations, null, 2));
-        console.log('Equity recommendations:', validRecommendations.recommendations.equity);
-        
-        // Check if listed stocks exist in the recommendations
-        if (!validRecommendations.recommendations.equity.listedStocks) {
-          console.log('Listed Stocks section not found in equity recommendations - creating it now');
-          
-          // Create stock category products based on fetched stock categories
-          const stockCategoryProducts = stockCategories.map(category => ({
-            name: `${category.name} Stock`,
-            description: `Listed equity in ${category.name} category`,
-            expectedReturn: category.code === 'LACAP' ? '10-12%' : 
-                          category.code === 'MIDCAP' ? '12-15%' : 
-                          category.code === 'SMCAP' ? '15-18%' : '18-22%',
-            risk: category.code === 'LACAP' ? 'Moderate' : 
-                 category.code === 'MIDCAP' ? 'Moderate-High' : 
-                 category.code === 'SMCAP' ? 'High' : 'Very High',
-            category: category.name,
-            minInvestment: 10000
-          }));
-          
-          // Add listed stocks to the recommendations
-          validRecommendations.recommendations.equity.listedStocks = {
-            products: stockCategoryProducts.length > 0 ? stockCategoryProducts : [
-              { name: 'Large Cap Stock', description: 'Listed equity in large cap category', expectedReturn: '10-12%', risk: 'Moderate', category: 'Large Cap', minInvestment: 10000 },
-              { name: 'Mid Cap Stock', description: 'Listed equity in mid cap category', expectedReturn: '12-15%', risk: 'Moderate-High', category: 'Mid Cap', minInvestment: 10000 },
-              { name: 'Small Cap Stock', description: 'Listed equity in small cap category', expectedReturn: '15-18%', risk: 'High', category: 'Small Cap', minInvestment: 10000 }
-            ],
-            allocation: 40
-          };
-          
-          // Adjust mutual funds allocation if it exists
-          if (validRecommendations.recommendations.equity.mutualFunds) {
-            validRecommendations.recommendations.equity.mutualFunds.allocation = 60;
-          }
-        }
-        
-        console.log('Listed Stocks after check:', validRecommendations.recommendations.equity.listedStocks);
-        console.log('Number of listed stock products:', validRecommendations.recommendations.equity.listedStocks.products.length);
-        
-        console.log('Debt recommendations:', validRecommendations.recommendations.debt);
         
         dispatch({ type: 'SET_PRODUCT_RECOMMENDATIONS', payload: validRecommendations });
         toast.success("Product recommendations retrieved successfully");
       } else {
         console.error("Invalid product recommendations response:", response);
+        setApiDataStatus({
+          listedStocks: 'error' as const,
+          mutualFunds: 'error' as const,
+          message: 'Failed to load product recommendations from API'
+        });
         toast.error("Received invalid product recommendations data");
       }
     } catch (error) {
       console.error("Error getting product recommendations:", error);
+      setApiDataStatus({
+        listedStocks: 'error' as const,
+        mutualFunds: 'error' as const,
+        message: 'Error connecting to API - using fallback data'
+      });
       toast.error("Failed to retrieve product recommendations");
     } finally {
       setIsLoading(false);
@@ -363,6 +653,20 @@ export const ProductsPage = () => {
     });
   };
 
+  // Function to get status icon for data source
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'success':
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case 'error':
+        return <AlertCircle className="h-4 w-4 text-red-500" />;
+      case 'fallback':
+        return <AlertCircle className="h-4 w-4 text-yellow-500" />;
+      default:
+        return <Loader2 className="h-4 w-4 animate-spin text-blue-500" />;
+    }
+  };
+
   return (
     <div>
       <PageTitle
@@ -370,23 +674,37 @@ export const ProductsPage = () => {
         description="Review and customize product recommendations based on client profile and risk assessment."
       />
       
-      <div className="mb-4 flex justify-end">
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={loadProductRecommendations} 
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Refreshing...
-            </>
-          ) : (
-            'Refresh Recommendations'
-          )}
-        </Button>
-      </div>
+      {/* API Data Status Indicator */}
+      <Card className="mb-4 border-l-4 border-l-blue-500">
+        <CardContent className="pt-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              {getStatusIcon(apiDataStatus.listedStocks)}
+              <span className="text-sm font-medium">Data Source Status:</span>
+              <span className="text-sm text-muted-foreground">{apiDataStatus.message}</span>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={loadProductRecommendations} 
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Refreshing...
+                </>
+              ) : (
+                'Refresh Recommendations'
+              )}
+            </Button>
+          </div>
+          <div className="mt-2 text-xs text-muted-foreground">
+            Listed Stocks: {apiDataStatus.listedStocks === 'success' ? 'API Data' : 'Fallback Data'} | 
+            Mutual Funds: {apiDataStatus.mutualFunds === 'success' ? 'API Data' : 'Fallback Data'}
+          </div>
+        </CardContent>
+      </Card>
       
       {state.productRecommendations ? (
         <>
@@ -426,142 +744,228 @@ export const ProductsPage = () => {
           
           {/* Edit Product Dialog */}
           <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-            <DialogContent className="sm:max-w-[600px]">
+            <DialogContent className="sm:max-w-[425px] w-[95vw] max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Edit Product</DialogTitle>
               </DialogHeader>
               <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <label className="text-right">Name</label>
-                  <Input 
-                    className="col-span-3" 
-                    value={editingProduct?.name || ''} 
+                <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 sm:gap-4">
+                  <Label htmlFor="name" className="sm:text-right">
+                    Name
+                  </Label>
+                  <Input
+                    id="name"
+                    value={editingProduct?.name || ''}
                     onChange={(e) => handleEditInputChange('name', e.target.value)}
+                    className="col-span-1 sm:col-span-3"
                   />
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <label className="text-right">Description</label>
-                  <Textarea 
-                    className="col-span-3" 
-                    value={editingProduct?.description || ''} 
-                    onChange={(e) => handleEditInputChange('description', e.target.value)}
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <label className="text-right">Expected Return</label>
-                  <Input 
-                    className="col-span-3" 
-                    value={editingProduct?.expectedReturn || ''} 
+                <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 sm:gap-4">
+                  <Label htmlFor="expectedReturn" className="sm:text-right">
+                    Expected Return
+                  </Label>
+                  <Input
+                    id="expectedReturn"
+                    value={editingProduct?.expectedReturn || ''}
                     onChange={(e) => handleEditInputChange('expectedReturn', e.target.value)}
-                    placeholder="e.g., 10-12% p.a."
+                    className="col-span-1 sm:col-span-3"
                   />
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <label className="text-right">Risk</label>
-                  <Input 
-                    className="col-span-3" 
-                    value={editingProduct?.risk || ''} 
+                <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 sm:gap-4">
+                  <Label htmlFor="risk" className="sm:text-right">
+                    Risk
+                  </Label>
+                  <Input
+                    id="risk"
+                    value={editingProduct?.risk || ''}
                     onChange={(e) => handleEditInputChange('risk', e.target.value)}
-                    placeholder="e.g., Moderate, High, Low"
+                    className="col-span-1 sm:col-span-3"
                   />
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <label className="text-right">Lock-in Period</label>
-                  <Input 
-                    className="col-span-3" 
-                    value={editingProduct?.lockInPeriod || editingProduct?.lockIn || ''} 
+                <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 sm:gap-4">
+                  <Label htmlFor="lockInPeriod" className="sm:text-right">
+                    Lock-in Period
+                  </Label>
+                  <Input
+                    id="lockInPeriod"
+                    value={editingProduct?.lockInPeriod || ''}
                     onChange={(e) => handleEditInputChange('lockInPeriod', e.target.value)}
-                    placeholder="e.g., None, 1 year, 3 years"
+                    className="col-span-1 sm:col-span-3"
                   />
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <label className="text-right">Min Investment</label>
-                  <Input 
-                    className="col-span-3" 
+                <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 sm:gap-4">
+                  <Label htmlFor="minInvestment" className="sm:text-right">
+                    Min Investment
+                  </Label>
+                  <Input
+                    id="minInvestment"
                     type="number"
-                    value={editingProduct?.minInvestment || ''} 
-                    onChange={(e) => handleEditInputChange('minInvestment', parseInt(e.target.value) || 0)}
-                    placeholder="e.g., 5000"
+                    value={editingProduct?.minInvestment || ''}
+                    onChange={(e) => handleEditInputChange('minInvestment', parseFloat(e.target.value))}
+                    className="col-span-1 sm:col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-4 items-start gap-2 sm:gap-4">
+                  <Label htmlFor="description" className="sm:text-right pt-2">
+                    Description
+                  </Label>
+                  <Textarea
+                    id="description"
+                    value={editingProduct?.description || ''}
+                    onChange={(e) => handleEditInputChange('description', e.target.value)}
+                    className="col-span-1 sm:col-span-3"
+                    rows={3}
                   />
                 </div>
               </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
-                <Button onClick={handleSaveEditedProduct}>Save Changes</Button>
+              <DialogFooter className="flex-col sm:flex-row gap-2">
+                <Button type="button" onClick={handleSaveEditedProduct} className="w-full sm:w-auto">
+                  Save changes
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
           
           {/* Add Product Dialog */}
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogContent className="sm:max-w-[600px]">
+            <DialogContent className="sm:max-w-[425px] w-[95vw] max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add New Product</DialogTitle>
               </DialogHeader>
               <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <label className="text-right">Name</label>
-                  <Input 
-                    className="col-span-3" 
-                    value={editingProduct?.name || ''} 
+                <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 sm:gap-4">
+                  <Label htmlFor="name" className="sm:text-right">
+                    Name
+                  </Label>
+                  <Input
+                    id="name"
+                    value={editingProduct?.name || ''}
                     onChange={(e) => handleEditInputChange('name', e.target.value)}
+                    className="col-span-1 sm:col-span-3"
                   />
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <label className="text-right">Description</label>
-                  <Textarea 
-                    className="col-span-3" 
-                    value={editingProduct?.description || ''} 
-                    onChange={(e) => handleEditInputChange('description', e.target.value)}
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <label className="text-right">Expected Return</label>
-                  <Input 
-                    className="col-span-3" 
-                    value={editingProduct?.expectedReturn || ''} 
+                <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 sm:gap-4">
+                  <Label htmlFor="expectedReturn" className="sm:text-right">
+                    Expected Return
+                  </Label>
+                  <Input
+                    id="expectedReturn"
+                    value={editingProduct?.expectedReturn || ''}
                     onChange={(e) => handleEditInputChange('expectedReturn', e.target.value)}
-                    placeholder="e.g., 10-12% p.a."
+                    className="col-span-1 sm:col-span-3"
                   />
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <label className="text-right">Risk</label>
-                  <Input 
-                    className="col-span-3" 
-                    value={editingProduct?.risk || ''} 
+                <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 sm:gap-4">
+                  <Label htmlFor="risk" className="sm:text-right">
+                    Risk
+                  </Label>
+                  <Input
+                    id="risk"
+                    value={editingProduct?.risk || ''}
                     onChange={(e) => handleEditInputChange('risk', e.target.value)}
-                    placeholder="e.g., Moderate, High, Low"
+                    className="col-span-1 sm:col-span-3"
                   />
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <label className="text-right">Lock-in Period</label>
-                  <Input 
-                    className="col-span-3" 
-                    value={editingProduct?.lockInPeriod || editingProduct?.lockIn || ''} 
+                <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 sm:gap-4">
+                  <Label htmlFor="lockInPeriod" className="sm:text-right">
+                    Lock-in Period
+                  </Label>
+                  <Input
+                    id="lockInPeriod"
+                    value={editingProduct?.lockInPeriod || ''}
                     onChange={(e) => handleEditInputChange('lockInPeriod', e.target.value)}
-                    placeholder="e.g., None, 1 year, 3 years"
+                    className="col-span-1 sm:col-span-3"
                   />
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <label className="text-right">Min Investment</label>
-                  <Input 
-                    className="col-span-3" 
+                <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 sm:gap-4">
+                  <Label htmlFor="minInvestment" className="sm:text-right">
+                    Min Investment
+                  </Label>
+                  <Input
+                    id="minInvestment"
                     type="number"
-                    value={editingProduct?.minInvestment || ''} 
-                    onChange={(e) => handleEditInputChange('minInvestment', parseInt(e.target.value) || 0)}
-                    placeholder="e.g., 5000"
+                    value={editingProduct?.minInvestment || ''}
+                    onChange={(e) => handleEditInputChange('minInvestment', parseFloat(e.target.value))}
+                    className="col-span-1 sm:col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-4 items-start gap-2 sm:gap-4">
+                  <Label htmlFor="description" className="sm:text-right pt-2">
+                    Description
+                  </Label>
+                  <Textarea
+                    id="description"
+                    value={editingProduct?.description || ''}
+                    onChange={(e) => handleEditInputChange('description', e.target.value)}
+                    className="col-span-1 sm:col-span-3"
+                    rows={3}
                   />
                 </div>
               </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
-                <Button onClick={handleSaveNewProduct}>Add Product</Button>
+              <DialogFooter className="flex-col sm:flex-row gap-2">
+                <Button type="button" onClick={handleSaveNewProduct} className="w-full sm:w-auto">
+                  Add Product
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
 
-          <Tabs defaultValue="equity" className="mb-6">
-            <TabsList className="mb-4">
+          {/* Catalog Popup Dialog */}
+          <Dialog open={isCatalogPopupOpen} onOpenChange={setIsCatalogPopupOpen}>
+            <DialogContent className="sm:max-w-[600px] w-[95vw] max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Add Products from Catalog</DialogTitle>
+                <DialogDescription>
+                  Select products to add to your {catalogProductType} recommendations.
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="py-4">
+                <div className="mb-4">
+                  <Input
+                    placeholder="Search products..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+                
+                <div className="max-h-[300px] overflow-y-auto border rounded-md">
+                  {filteredProducts.length > 0 ? (
+                    <div className="divide-y">
+                      {filteredProducts.map((product) => (
+                        <div key={product.name} className="p-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 hover:bg-muted/50">
+                          <div>
+                            <div className="font-medium">{product.name}</div>
+                            <div className="text-sm text-muted-foreground">{product.expectedReturn} | {product.risk}</div>
+                          </div>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleAddProductFromCatalog(product.name, catalogProductType, catalogAssetClass)}
+                            className="w-full sm:w-auto"
+                          >
+                            Add
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : searchTerm ? (
+                    <div className="p-4 text-center text-muted-foreground">
+                      No products found matching "{searchTerm}"
+                    </div>
+                  ) : (
+                    <div className="p-4 text-center text-muted-foreground">
+                      No products available to add
+                    </div>
+                  )}
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Tabs defaultValue="equity" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="equity">Equity</TabsTrigger>
               <TabsTrigger value="debt">Debt</TabsTrigger>
             </TabsList>
@@ -569,7 +973,6 @@ export const ProductsPage = () => {
             {/* Equity Products */}
             <TabsContent value="equity" className="space-y-4">
               {state.productRecommendations.recommendations.equity && 
-                // Custom sort function to control the order of product types
                 Object.entries(state.productRecommendations.recommendations.equity)
                   .sort(([typeA], [typeB]) => {
                     // Define the order priority for different product types
@@ -591,11 +994,12 @@ export const ProductsPage = () => {
                   // Debug log for each product type
                   console.log(`Rendering product type: ${productType}`, data);
                   
-                  // Skip if no products or empty array
-                  if (!data?.products || data.products.length === 0) {
-                    console.log(`Skipping ${productType} - no products or empty array`);
-                    return null;
+                  // Initialize products array if it doesn't exist
+                  if (!data.products) {
+                    data.products = [];
                   }
+                  
+                  console.log(`Rendering ${productType} with ${data.products.length} products (may be empty)`);
                   
                   // Convert camelCase to Title Case for display
                   const formatProductType = (type: string) => {
@@ -633,13 +1037,42 @@ export const ProductsPage = () => {
                       <CardHeader className="pb-2">
                         <CardTitle className="flex justify-between items-center">
                           <span>{typeName}</span>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => handleAddProduct(productType, 'equity')}
-                          >
-                            <Plus className="h-4 w-4 mr-2" /> Add Product
-                          </Button>
+                          <div className="flex items-center space-x-2">
+                            {productType === 'listedStocks' && (
+                              <div className="flex items-center mr-4">
+                                <Checkbox 
+                                  id="include-listed-stocks" 
+                                  checked={includeListedStocks} 
+                                  onCheckedChange={(checked) => setIncludeListedStocks(checked as boolean)}
+                                  className="mr-2"
+                                />
+                                <Label htmlFor="include-listed-stocks" className="text-sm cursor-pointer">
+                                  Include in proposal
+                                </Label>
+                              </div>
+                            )}
+                            {productType === 'unlistedStocks' && (
+                              <div className="flex items-center mr-4">
+                                <Checkbox 
+                                  id="include-unlisted-stocks" 
+                                  checked={includeUnlistedStocks} 
+                                  onCheckedChange={(checked) => setIncludeUnlistedStocks(checked as boolean)}
+                                  className="mr-2"
+                                />
+                                <Label htmlFor="include-unlisted-stocks" className="text-sm cursor-pointer">
+                                  Include in proposal
+                                </Label>
+                              </div>
+                            )}
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleOpenCatalogPopup(productType, 'equity')}
+                            >
+                              <Plus className="h-4 w-4 mr-2" />
+                              Add from Catalog
+                            </Button>
+                          </div>
                         </CardTitle>
                         <p className="text-sm text-muted-foreground">{description}</p>
                       </CardHeader>
@@ -650,14 +1083,7 @@ export const ProductsPage = () => {
                               <div className="flex justify-between items-start">
                                 <h4 className="font-medium">{product.name}</h4>
                                 <div className="flex items-center space-x-2">
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm" 
-                                    className="h-8 w-8 p-0" 
-                                    onClick={() => handleEditProduct(product, productType, 'equity')}
-                                  >
-                                    <Pencil className="h-4 w-4" />
-                                  </Button>
+                                  <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">{product.expectedReturn}</span>
                                   <Button 
                                     variant="ghost" 
                                     size="sm" 
@@ -679,14 +1105,16 @@ export const ProductsPage = () => {
                           {data.products.length === 0 && (
                             <div className="text-center py-6 text-muted-foreground">
                               <p>No products in this category.</p>
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
-                                className="mt-2" 
-                                onClick={() => handleAddProduct(productType, 'equity')}
-                              >
-                                <Plus className="h-4 w-4 mr-2" /> Add Product
-                              </Button>
+                              <div className="flex justify-center space-x-2 mt-2">
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => handleOpenCatalogPopup(productType, 'equity')}
+                                >
+                                  <Plus className="h-4 w-4 mr-2" />
+                                  Add from Catalog
+                                </Button>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -715,8 +1143,10 @@ export const ProductsPage = () => {
             <TabsContent value="debt" className="space-y-4">
               {state.productRecommendations.recommendations.debt && 
                 Object.entries(state.productRecommendations.recommendations.debt).map(([productType, data]: [string, any]) => {
-                  // Skip if no products or empty array
-                  if (!data?.products || data.products.length === 0) return null;
+                  // Initialize products array if it doesn't exist
+                  if (!data.products) {
+                    data.products = [];
+                  }
                   
                   // Convert camelCase to Title Case for display
                   const formatProductType = (type: string) => {
@@ -745,13 +1175,16 @@ export const ProductsPage = () => {
                       <CardHeader className="pb-2">
                         <CardTitle className="flex justify-between items-center">
                           <span>{typeName}</span>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => handleAddProduct(productType, 'debt')}
-                          >
-                            <Plus className="h-4 w-4 mr-2" /> Add Product
-                          </Button>
+                          <div className="flex items-center space-x-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleOpenCatalogPopup(productType, 'debt')}
+                            >
+                              <Plus className="h-4 w-4 mr-2" />
+                              Add from Catalog
+                            </Button>
+                          </div>
                         </CardTitle>
                         <p className="text-sm text-muted-foreground">{description}</p>
                       </CardHeader>
@@ -763,14 +1196,6 @@ export const ProductsPage = () => {
                                 <h4 className="font-medium">{product.name}</h4>
                                 <div className="flex items-center space-x-2">
                                   <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">{product.expectedReturn}</span>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm" 
-                                    className="h-8 w-8 p-0" 
-                                    onClick={() => handleEditProduct(product, productType, 'debt')}
-                                  >
-                                    <Pencil className="h-4 w-4" />
-                                  </Button>
                                   <Button 
                                     variant="ghost" 
                                     size="sm" 
@@ -792,14 +1217,16 @@ export const ProductsPage = () => {
                           {data.products.length === 0 && (
                             <div className="text-center py-6 text-muted-foreground">
                               <p>No products in this category.</p>
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
-                                className="mt-2" 
-                                onClick={() => handleAddProduct(productType, 'debt')}
-                              >
-                                <Plus className="h-4 w-4 mr-2" /> Add Product
-                              </Button>
+                              <div className="flex justify-center space-x-2 mt-2">
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => handleOpenCatalogPopup(productType, 'debt')}
+                                >
+                                  <Plus className="h-4 w-4 mr-2" />
+                                  Add from Catalog
+                                </Button>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -828,10 +1255,10 @@ export const ProductsPage = () => {
           <div className="mt-8 mb-4 flex justify-center">
             <Button 
               variant="outline" 
-              onClick={() => setIsAddMoreProductsOpen(true)}
+              onClick={() => setIsCreateCategoryOpen(true)}
               className="mx-auto"
             >
-              <Plus className="h-4 w-4 mr-2" /> Add More Products
+              <Plus className="h-4 w-4 mr-2" /> Create Category
             </Button>
           </div>
           
@@ -839,14 +1266,46 @@ export const ProductsPage = () => {
             previousStep={3}
             nextStep={5}
             buttonText="Generate Investment Proposal"
+            onNext={handleSaveAndContinue}
           />
           
-          {/* Add More Products Dialog */}
-          <AddProductDialog
-            isOpen={isAddMoreProductsOpen}
-            onClose={() => setIsAddMoreProductsOpen(false)}
-            onAddProduct={handleAddMoreProduct}
-          />
+          {/* Create Category Dialog */}
+          <Dialog open={isCreateCategoryOpen} onOpenChange={setIsCreateCategoryOpen}>
+            <DialogContent className="sm:max-w-[500px] w-[95vw] max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Create New Product Category</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-6 py-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Product Category</label>
+                  <Select value={selectedCategoryOption} onValueChange={setSelectedCategoryOption}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select a product category" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[200px]">
+                      <SelectItem value="equity-aif">Equity AIF</SelectItem>
+                      <SelectItem value="equity-pms">Equity PMS</SelectItem>
+                      <SelectItem value="equity-mutualFunds">Equity Mutual Funds</SelectItem>
+                      <SelectItem value="debt-mutualFunds">Debt Mutual Funds</SelectItem>
+                      <SelectItem value="debt-aif">Debt AIF</SelectItem>
+                      <SelectItem value="debt-direct">Direct Debt</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md">
+                  <p>This will create a new product category where you can add products from the catalog.</p>
+                </div>
+              </div>
+              <DialogFooter className="flex-col sm:flex-row gap-2">
+                <Button variant="outline" onClick={() => setIsCreateCategoryOpen(false)} className="w-full sm:w-auto">
+                  Cancel
+                </Button>
+                <Button onClick={handleCreateCategory} disabled={!selectedCategoryOption} className="w-full sm:w-auto">
+                  Create Category
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </>
       ) : (
         <div className="text-center text-muted-foreground">
