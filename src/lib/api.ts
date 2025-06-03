@@ -169,8 +169,8 @@ const transformProfileForRiskAssessment = (profileData: ClientProfile) => {
       investmentHorizon: investmentHorizon,
       riskTolerance: profileData.riskTolerance.preferredStyle,
       primaryGoal: profileData.investment.primaryGoals[0]?.toLowerCase() || "retirement",
-      initialInvestmentAmount: profileData.personal.initialAmount || 500000,
-      monthlyContribution: profileData.investment.regularContribution || 10000
+      initialInvestmentAmount: profileData.personal.initialAmount,
+      monthlyContribution: profileData.investment.regularContribution,
     },
     financialSituation: {
       netWorth: profileData.financial.currentInvestments + profileData.financial.realEstate - profileData.financial.liabilities,
@@ -735,10 +735,10 @@ export const downloadProposalPdf = async (proposal: InvestmentProposal): Promise
     const debtPapers = [];
     
     // Process all recommendations by category
-    const allRecommendations = proposal.productRecommendations?.recommendations || {};
+    const allRecommendations = proposal.productRecommendations?.recommendations || {} as any;
     
     // Helper function to extract return value
-    const extractReturnValue = (returnStr) => {
+    const extractReturnValue = (returnStr: any) => {
       if (!returnStr) return 10.00; // Default
       const match = returnStr.match(/(\d+(\.\d+)?)/); 
       return match ? parseFloat(match[1]) : 10.00;
@@ -746,11 +746,11 @@ export const downloadProposalPdf = async (proposal: InvestmentProposal): Promise
     
     // Process equity products and categorize them
     if (allRecommendations.equity) {
-      Object.entries(allRecommendations.equity).forEach(([type, details]) => {
-        // @ts-ignore - type safety for details
+      Object.entries(allRecommendations.equity).forEach(([type, details]: [string, any]) => {
         if (details && details.products && Array.isArray(details.products)) {
-          // @ts-ignore - type safety for products
-          details.products.forEach(product => {
+          console.log(`Processing equity type: ${type} with ${details.products.length} products`);
+          
+          details.products.forEach((product: any) => {
             const returnValue = extractReturnValue(product.expectedReturn);
             
             // Determine the actual category based on product type and name
@@ -773,38 +773,48 @@ export const downloadProposalPdf = async (proposal: InvestmentProposal): Promise
             const productName = product.name.toLowerCase();
             const productDesc = (product.description || '').toLowerCase();
             
-            if (type.toLowerCase().includes('pms') || 
-                productName.includes('pms') || 
-                productDesc.includes('portfolio management') ||
-                productName.includes('island') ||
-                productName.includes('abakkus') ||
-                productName.includes('phoenix pms')) {
+            // Enhanced AIF detection logic
+            if (type === 'aif' || 
+                type.toLowerCase() === 'aif' ||
+                type.toLowerCase().includes('aif') || 
+                productName.includes('aif') || 
+                productName.includes('alternative investment') ||
+                productName.includes('special situations') ||
+                productName.includes('long-short') ||
+                productName.includes('northern arc') ||
+                productDesc.includes('alternative investment') ||
+                productDesc.includes('aif')) {
+              // This is an AIF product
+              console.log(`Found AIF product: ${product.name} (type: ${type})`);
+              aifFunds.push({
+                fund_name: product.name,
+                category: "AIF",
+                investment_size: formatIndianCurrency(proposal.assetAllocation?.portfolioSize * 0.1) // Estimate
+              });
+            } 
+            else if (type === 'pms' ||
+                    type.toLowerCase() === 'pms' ||
+                    type.toLowerCase().includes('pms') || 
+                    productName.includes('pms') || 
+                    productDesc.includes('portfolio management') ||
+                    productName.includes('island') ||
+                    productName.includes('abakkus') ||
+                    productName.includes('phoenix pms')) {
               // This is a PMS product
+              console.log(`Found PMS product: ${product.name} (type: ${type})`);
               pmsFunds.push({
                 fund_name: product.name,
                 category: "PMS",
                 investment_size: formatIndianCurrency(proposal.assetAllocation?.portfolioSize * 0.1) // Estimate
               });
             } 
-            else if (type.toLowerCase().includes('aif') || 
-                    productName.includes('aif') || 
-                    productName.includes('alternative investment') ||
-                    productName.includes('special situations') ||
-                    productName.includes('long-short') ||
-                    productName.includes('northern arc')) {
-              // This is an AIF product
-              aifFunds.push({
-                fund_name: product.name,
-                category: "AIF",
-                investment_size: formatIndianCurrency(proposal.assetAllocation?.portfolioSize * 0.1) // Estimate
-              });
-            }
             else if (productName.includes('unlisted') || 
                     type.toLowerCase().includes('unlisted') ||
                     productDesc.includes('unlisted') ||
                     productName.includes('private') ||
-                    !productName.includes('fund')) {
+                    (!productName.includes('fund') && !productName.includes('aif') && !productName.includes('pms'))) {
               // This is likely an unlisted equity
+              console.log(`Found unlisted equity: ${product.name} (type: ${type})`);
               unlisted.push({
                 name: product.name,
                 industry: "Financials", // Default
@@ -830,21 +840,42 @@ export const downloadProposalPdf = async (proposal: InvestmentProposal): Promise
     
     // Process debt products
     if (allRecommendations.debt) {
-      Object.entries(allRecommendations.debt).forEach(([type, details]) => {
-        // @ts-ignore
+      Object.entries(allRecommendations.debt).forEach(([type, details]: [string, any]) => {
         if (details && details.products && Array.isArray(details.products)) {
-          // @ts-ignore
-          details.products.forEach(product => {
-            debtPapers.push({
-              fund_name: product.name,
-              maturity: "28 Jan 2027(M)",
-              payment_frequency: "Monthly",
-              ytm: product.expectedReturn || "7-8%",
-              quantum: "10 Lac",
-              type: "Senior Secured",
-              face_value: "1,00,000",
-              rating: "A by ICRA"
-            });
+          console.log(`Processing debt type: ${type} with ${details.products.length} products`);
+          
+          details.products.forEach((product: any) => {
+            // Check for debt AIF products first
+            const productName = product.name.toLowerCase();
+            const productDesc = (product.description || '').toLowerCase();
+            
+            if (type === 'aif' || 
+                type.toLowerCase() === 'aif' ||
+                type.toLowerCase().includes('aif') || 
+                productName.includes('aif') || 
+                productName.includes('alternative investment') ||
+                productDesc.includes('alternative investment') ||
+                productDesc.includes('aif')) {
+              // This is a debt AIF product
+              console.log(`Found Debt AIF product: ${product.name} (type: ${type})`);
+              aifFunds.push({
+                fund_name: product.name,
+                category: "Debt AIF",
+                investment_size: formatIndianCurrency(proposal.assetAllocation?.portfolioSize * 0.1) // Estimate
+              });
+            } else {
+              // Regular debt product
+              debtPapers.push({
+                fund_name: product.name,
+                maturity: "28 Jan 2027(M)",
+                payment_frequency: "Monthly",
+                ytm: product.expectedReturn || "7-8%",
+                quantum: "10 Lac",
+                type: "Senior Secured",
+                face_value: "1,00,000",
+                rating: "A by ICRA"
+              });
+            }
           });
         }
       });
@@ -852,25 +883,32 @@ export const downloadProposalPdf = async (proposal: InvestmentProposal): Promise
     
     // Process alternative products if they exist
     if (allRecommendations.alternative) {
-      Object.entries(allRecommendations.alternative).forEach(([type, details]) => {
-        // @ts-ignore
+      Object.entries(allRecommendations.alternative).forEach(([type, details]: [string, any]) => {
         if (details && details.products && Array.isArray(details.products)) {
-          // @ts-ignore
-          details.products.forEach(product => {
+          console.log(`Processing alternative type: ${type} with ${details.products.length} products`);
+          
+          details.products.forEach((product: any) => {
             // Categorize based on product type
             const productName = product.name.toLowerCase();
             
-            if (productName.includes('pms') || type.toLowerCase().includes('pms')) {
-              pmsFunds.push({
-                fund_name: product.name,
-                category: "PMS",
-                investment_size: formatIndianCurrency(proposal.assetAllocation?.portfolioSize * 0.1)
-              });
-            } 
-            else if (productName.includes('aif') || type.toLowerCase().includes('aif')) {
+            if (type === 'aif' || 
+                type.toLowerCase() === 'aif' ||
+                productName.includes('aif') || 
+                type.toLowerCase().includes('aif')) {
+              console.log(`Found Alternative AIF product: ${product.name} (type: ${type})`);
               aifFunds.push({
                 fund_name: product.name,
                 category: "AIF",
+                investment_size: formatIndianCurrency(proposal.assetAllocation?.portfolioSize * 0.1)
+              });
+            } 
+            else if (type === 'pms' || 
+                    productName.includes('pms') || 
+                    type.toLowerCase().includes('pms')) {
+              console.log(`Found Alternative PMS product: ${product.name} (type: ${type})`);
+              pmsFunds.push({
+                fund_name: product.name,
+                category: "PMS",
                 investment_size: formatIndianCurrency(proposal.assetAllocation?.portfolioSize * 0.1)
               });
             }
@@ -886,49 +924,284 @@ export const downloadProposalPdf = async (proposal: InvestmentProposal): Promise
       });
     }
     
+    // Debug logging for AIF products
+    console.log('Total AIF products found:', aifFunds.length);
+    console.log('AIF products:', aifFunds);
+    console.log('Total PMS products found:', pmsFunds.length);
+    console.log('PMS products:', pmsFunds);
+    
     // Process asset allocation items
     const assetAllocationItems = [];
     
-    // Process equity allocation
+    // Calculate target amounts for each asset category and update individual product investment sizes
+    const portfolioSize = proposal.assetAllocation?.portfolioSize || 0;
+    
+    // Calculate target amounts for each major asset class
+    const equityAllocation = (proposal.assetAllocation?.assetClassAllocation?.equity || 50) / 100;
+    const debtAllocation = (proposal.assetAllocation?.assetClassAllocation?.debt || 40) / 100;
+    
+    const totalEquityAmount = portfolioSize * equityAllocation;
+    const totalDebtAmount = portfolioSize * debtAllocation;
+    
+    console.log('Portfolio breakdown:');
+    console.log('Total portfolio:', formatIndianCurrency(portfolioSize));
+    console.log('Total equity amount:', formatIndianCurrency(totalEquityAmount));
+    console.log('Total debt amount:', formatIndianCurrency(totalDebtAmount));
+    
+    // Calculate and update AIF investment sizes
+    let aifTargetAmount = 0;
+    if (aifFunds.length > 0) {
+      const aifAllocationPercent = (proposal.assetAllocation?.productTypeAllocation?.equity?.aif || 
+                                   proposal.assetAllocation?.productTypeAllocation?.equity?.AIF || 10) / 100;
+      aifTargetAmount = totalEquityAmount * aifAllocationPercent;
+      const individualAifAmount = aifTargetAmount / aifFunds.length;
+      
+      console.log('AIF allocation:', formatIndianCurrency(aifTargetAmount));
+      console.log('Per AIF fund:', formatIndianCurrency(individualAifAmount));
+      
+      // Update each AIF fund with calculated amount
+      aifFunds.forEach(fund => {
+        fund.investment_size = formatIndianCurrency(individualAifAmount);
+      });
+    }
+    
+    // Calculate and update PMS investment sizes
+    let pmsTargetAmount = 0;
+    if (pmsFunds.length > 0) {
+      const pmsAllocationPercent = (proposal.assetAllocation?.productTypeAllocation?.equity?.pms || 
+                                   proposal.assetAllocation?.productTypeAllocation?.equity?.PMS || 15) / 100;
+      pmsTargetAmount = totalEquityAmount * pmsAllocationPercent;
+      const individualPmsAmount = pmsTargetAmount / pmsFunds.length;
+      
+      console.log('PMS allocation:', formatIndianCurrency(pmsTargetAmount));
+      console.log('Per PMS fund:', formatIndianCurrency(individualPmsAmount));
+      
+      // Update each PMS fund with calculated amount
+      pmsFunds.forEach(fund => {
+        fund.investment_size = formatIndianCurrency(individualPmsAmount);
+      });
+    }
+    
+    // Calculate and update debt paper investment sizes
+    if (debtPapers.length > 0) {
+      // Allocate available debt amount to debt papers (excluding debt mutual funds)
+      const debtMutualFundPercent = (proposal.assetAllocation?.productTypeAllocation?.debt?.mutualFunds || 50) / 100;
+      const availableDebtAmount = totalDebtAmount * (1 - debtMutualFundPercent); // Remaining after debt mutual funds
+      const individualDebtAmount = availableDebtAmount / debtPapers.length;
+      
+      console.log('Debt papers allocation:', formatIndianCurrency(availableDebtAmount));
+      console.log('Per debt paper:', formatIndianCurrency(individualDebtAmount));
+      
+      // Update each debt paper with calculated amount (update the quantum field)
+      debtPapers.forEach(paper => {
+        paper.quantum = formatIndianCurrency(individualDebtAmount);
+      });
+    }
+    
+    // Calculate and update unlisted equity investment sizes
+    if (unlisted.length > 0) {
+      const unlistedAllocationPercent = (proposal.assetAllocation?.productTypeAllocation?.equity?.unlistedStocks || 
+                                        proposal.assetAllocation?.productTypeAllocation?.equity?.unlisted || 5) / 100;
+      const totalUnlistedAmount = totalEquityAmount * unlistedAllocationPercent;
+      const individualUnlistedAmount = totalUnlistedAmount / unlisted.length;
+      
+      console.log('Unlisted equity allocation:', formatIndianCurrency(totalUnlistedAmount));
+      console.log('Per unlisted equity:', formatIndianCurrency(individualUnlistedAmount));
+      
+      // Update each unlisted equity with calculated amount
+      unlisted.forEach(equity => {
+        equity.investment_size = formatIndianCurrency(individualUnlistedAmount);
+      });
+    }
+    
+    // Process mutual funds specifically to match sample_data.json format
+    // Combine ALL mutual funds (equity + debt) into a single entry
+    const mutualFundsCategoryMap = new Map(); // To track categories and avoid duplicates
+    let totalMutualFundsAmount = 0;
+    
+    // Calculate mutual fund amounts based on proper allocation
+    const equityMutualFundAllocation = (proposal.assetAllocation?.productTypeAllocation?.equity?.mutualFunds || 60) / 100;
+    const debtMutualFundAllocation = (proposal.assetAllocation?.productTypeAllocation?.debt?.mutualFunds || 50) / 100;
+    
+    const totalEquityMutualFundAmount = totalEquityAmount * equityMutualFundAllocation;
+    const totalDebtMutualFundAmount = totalDebtAmount * debtMutualFundAllocation;
+    
+    // Extract mutual funds from equity recommendations
+    if (allRecommendations.equity && allRecommendations.equity.mutualFunds && allRecommendations.equity.mutualFunds.products) {
+      const equityMutualFundsCount = allRecommendations.equity.mutualFunds.products.length;
+      const individualEquityFundAmount = totalEquityMutualFundAmount / equityMutualFundsCount;
+      
+      allRecommendations.equity.mutualFunds.products.forEach((product: any) => {
+        // Get fund category from product name or set default
+        let category = "Large Cap Fund";
+        const productName = product.name.toLowerCase();
+        if (productName.includes('large cap') || productName.includes('bluechip')) {
+          category = "Large Cap Fund";
+        } else if (productName.includes('mid cap')) {
+          category = "Mid Cap Fund";
+        } else if (productName.includes('small cap')) {
+          category = "Small Cap Fund";
+        } else if (productName.includes('global') || productName.includes('international')) {
+          category = "Global Funds";
+        } else if (productName.includes('hybrid') || productName.includes('balanced') || productName.includes('multi asset')) {
+          category = "Hybrid Fund/Multi Asset Fund";
+        } else if (productName.includes('thematic') || productName.includes('sector')) {
+          category = "Thematic Fund";
+        } else if (productName.includes('elss') || productName.includes('tax saver')) {
+          category = "ELSS Fund";
+        }
+        
+        // Check if this category already exists, if so, combine the amounts
+        if (mutualFundsCategoryMap.has(category)) {
+          const existingAmount = mutualFundsCategoryMap.get(category);
+          mutualFundsCategoryMap.set(category, existingAmount + individualEquityFundAmount);
+        } else {
+          mutualFundsCategoryMap.set(category, individualEquityFundAmount);
+        }
+        
+        totalMutualFundsAmount += individualEquityFundAmount;
+      });
+    }
+    
+    // Extract mutual funds from debt recommendations and add to the same map
+    if (allRecommendations.debt && allRecommendations.debt.mutualFunds && allRecommendations.debt.mutualFunds.products) {
+      const debtMutualFundsCount = allRecommendations.debt.mutualFunds.products.length;
+      const individualDebtFundAmount = totalDebtMutualFundAmount / debtMutualFundsCount;
+      
+      allRecommendations.debt.mutualFunds.products.forEach((product: any) => {
+        // For debt mutual funds, use the product name directly or categorize appropriately
+        let category = "Debt Fund";
+        const productName = product.name.toLowerCase();
+        if (productName.includes('short duration') || productName.includes('liquid')) {
+          category = "Short Duration Fund";
+        } else if (productName.includes('corporate bond') || productName.includes('credit')) {
+          category = "Corporate Bond Fund";
+        } else if (productName.includes('gilt') || productName.includes('government')) {
+          category = "Government Securities Fund";
+        } else if (productName.includes('dynamic bond') || productName.includes('income')) {
+          category = "Dynamic Bond Fund";
+        } else {
+          category = "Debt Fund";
+        }
+        
+        // Check if this category already exists, if so, combine the amounts
+        if (mutualFundsCategoryMap.has(category)) {
+          const existingAmount = mutualFundsCategoryMap.get(category);
+          mutualFundsCategoryMap.set(category, existingAmount + individualDebtFundAmount);
+        } else {
+          mutualFundsCategoryMap.set(category, individualDebtFundAmount);
+        }
+        
+        totalMutualFundsAmount += individualDebtFundAmount;
+      });
+    }
+    
+    // Convert the map to details array (no duplicates)
+    const allMutualFundsDetails = Array.from(mutualFundsCategoryMap.entries()).map(([category, amount]) => {
+      return `${category} - ${formatIndianCurrency(amount)}.`;
+    });
+    
+    // Add single consolidated Mutual Funds entry if we have any mutual funds
+    if (allMutualFundsDetails.length > 0) {
+      assetAllocationItems.push({
+        name: "Mutual Funds",
+        details: allMutualFundsDetails,
+        asset_class: "Equity", // Keep as Equity since it's typically the primary component
+        amount: formatIndianCurrency(totalMutualFundsAmount)
+      });
+    }
+    
+    // Add AIF to asset allocation items if we have AIF funds
+    if (aifFunds.length > 0) {
+      assetAllocationItems.push({
+        name: "AIF",
+        asset_class: "Equity",
+        amount: formatIndianCurrency(aifTargetAmount)
+      });
+    }
+    
+    // Add PMS to asset allocation items if we have PMS funds
+    if (pmsFunds.length > 0) {
+      assetAllocationItems.push({
+        name: "PMS",
+        asset_class: "Equity", 
+        amount: formatIndianCurrency(pmsTargetAmount)
+      });
+    }
+    
+    // Process remaining equity product types from productTypeAllocation (excluding mutual funds, AIF, PMS which we handled above)
     if (proposal.assetAllocation?.productTypeAllocation?.equity) {
       Object.entries(proposal.assetAllocation.productTypeAllocation.equity).forEach(([type, allocation]) => {
-        const amount = proposal.assetAllocation.portfolioSize * (Number(allocation) / 100);
+        // Skip mutual funds, individual cap categories, and AIF/PMS which we already processed above
+        const skipTypes = ['mutualFunds', 'Large Cap', 'Mid Cap', 'Small Cap', 'largeCap', 'midCap', 'smallCap', 'aif', 'AIF', 'pms', 'PMS', 'unlistedStocks', 'unlisted'];
         
-        assetAllocationItems.push({
-          name: `${type} Funds`,
-          details: [`${type} Fund - ${formatIndianCurrency(amount)}`],
-          asset_class: "Equity",
-          amount: formatIndianCurrency(amount)
-        });
+        if (!skipTypes.includes(type)) {
+          const amount = totalEquityAmount * (Number(allocation) / 100);
+          
+          let displayName = type;
+          if (type === 'listedStocks') displayName = 'Listed Stocks';
+          else if (type === 'etf') displayName = 'ETFs';
+          
+          assetAllocationItems.push({
+            name: displayName,
+            asset_class: "Equity",
+            amount: formatIndianCurrency(amount)
+          });
+        }
       });
     }
     
-    // Process debt allocation
+    // Process debt products (non-mutual funds) - calculate proper allocations
     if (proposal.assetAllocation?.productTypeAllocation?.debt) {
       Object.entries(proposal.assetAllocation.productTypeAllocation.debt).forEach(([type, allocation]) => {
-        const amount = proposal.assetAllocation.portfolioSize * (Number(allocation) / 100);
-        
-        assetAllocationItems.push({
-          name: type,
-          details: [`${type} - ${formatIndianCurrency(amount)}`],
-          asset_class: "Debt",
-          amount: formatIndianCurrency(amount)
-        });
+        if (type !== 'mutualFunds') { // Skip mutual funds as we handled them in the consolidated entry above
+          const amount = totalDebtAmount * (Number(allocation) / 100);
+          
+          let displayName = type;
+          if (type === 'direct') displayName = 'Government Bonds';
+          else if (type === 'corporate') displayName = 'Corporate Bonds';
+          else if (type === 'fixedDeposits') displayName = 'Fixed Deposits';
+          else if (type === 'aif') displayName = 'Debt AIF';
+          
+          assetAllocationItems.push({
+            name: displayName,
+            asset_class: "Debt", 
+            amount: formatIndianCurrency(amount)
+          });
+        }
       });
     }
     
-    // Process alternative allocation if available
-    if (proposal.assetAllocation?.productTypeAllocation['alternative']) {
-      Object.entries(proposal.assetAllocation.productTypeAllocation['alternative']).forEach(([type, allocation]) => {
-        const amount = proposal.assetAllocation.portfolioSize * (Number(allocation) / 100);
-        
+    // If no specific debt allocation found, add default debt categories
+    if (!proposal.assetAllocation?.productTypeAllocation?.debt && totalDebtAmount > 0) {
+      const remainingDebtAmount = totalDebtAmount - totalDebtMutualFundAmount;
+      const governmentBondsAmount = remainingDebtAmount * 0.3;
+      const corporateBondsAmount = remainingDebtAmount * 0.3;
+      const fixedDepositsAmount = remainingDebtAmount * 0.4;
+      
+      if (governmentBondsAmount > 0) {
         assetAllocationItems.push({
-          name: type,
-          details: [`${type} - ${formatIndianCurrency(amount)}`],
-          asset_class: "Alternative",
-          amount: formatIndianCurrency(amount)
+          name: "Government Bonds",
+          asset_class: "Debt",
+          amount: formatIndianCurrency(governmentBondsAmount)
         });
-      });
+      }
+      
+      if (corporateBondsAmount > 0) {
+        assetAllocationItems.push({
+          name: "Corporate Bonds",
+          asset_class: "Debt",
+          amount: formatIndianCurrency(corporateBondsAmount)
+        });
+      }
+      
+      if (fixedDepositsAmount > 0) {
+        assetAllocationItems.push({
+          name: "Fixed Deposits",
+          asset_class: "Debt",
+          amount: formatIndianCurrency(fixedDepositsAmount)
+        });
+      }
     }
     
     // Format the data according to the new API structure
@@ -956,7 +1229,7 @@ export const downloadProposalPdf = async (proposal: InvestmentProposal): Promise
     
     // Prepare the final data for the API in the expected format
     // Only include sections that have actual data
-    const pdfData = {
+    const pdfData: any = {
       clientname: clientName,
       report_title: proposal.title || "Investment Proposal for " + clientName,
       logo_url: "",
@@ -987,7 +1260,10 @@ export const downloadProposalPdf = async (proposal: InvestmentProposal): Promise
         },
         items: assetAllocationItems,
         total: formatIndianCurrency(proposal.assetAllocation?.portfolioSize || 0)
-      }
+      },
+      // Add the new template and blur_funds parameters
+      template: (proposal as any).template || 'invest4edu',
+      blur_funds: (proposal as any).blur_funds !== undefined ? (proposal as any).blur_funds : true
     };
     
     // Only add fixed_income_offering if we have debt papers
@@ -1007,7 +1283,7 @@ export const downloadProposalPdf = async (proposal: InvestmentProposal): Promise
     // Only add PMS if we have PMS funds
     if (pmsFunds.length > 0) {
       pdfData.pms = {
-        target: formatIndianCurrency(proposal.assetAllocation?.portfolioSize * 0.2), // Estimate
+        target: formatIndianCurrency(pmsTargetAmount), // Use calculated target amount
         description: "The funds endeavor to generate alpha and risk adjusted returns for the investor by investing in benchmark agnostic multi-cap portfolio with bias towards companies which classify in the mid and small market capitalization.",
         bullets: [
           "The Selected Funds invest in companies where valuations are attractive and strong underlying fundamentals form high intrinsic value.",
@@ -1020,7 +1296,7 @@ export const downloadProposalPdf = async (proposal: InvestmentProposal): Promise
     // Only add AIFs if we have AIF funds
     if (aifFunds.length > 0) {
       pdfData.aif = {
-        target: formatIndianCurrency(proposal.assetAllocation?.portfolioSize * 0.15), // Estimate
+        target: formatIndianCurrency(aifTargetAmount), // Use calculated target amount
         description: "Alternative Investment Funds provide exposure to non-traditional investment strategies and asset classes.",
         bullets: [
           "AIFs offer diversification benefits and potentially higher returns compared to traditional investments.",
@@ -1055,13 +1331,6 @@ export const downloadProposalPdf = async (proposal: InvestmentProposal): Promise
       delete pdfData.investment_products.mutual_fund;
     }
 
-    // Add the new template and blur_funds parameters
-    // Use the template from the proposal or default to 'invest4edu'
-    pdfData.template = proposal.template || 'invest4edu';
-    
-    // Use the blur_funds parameter from the proposal or default to true (initial proposal)
-    pdfData.blur_funds = proposal.blur_funds !== undefined ? proposal.blur_funds : true;
-    
     // Log the final data being sent to the API with full details
     console.log('FULL PDF DATA BEING SENT TO API:', JSON.stringify(pdfData, null, 2));
     
