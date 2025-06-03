@@ -18,7 +18,7 @@ export const RiskPage = () => {
   const { state, dispatch, navigateToStep } = useAppContext();
   const { clientProfile, riskAssessment } = state;
   const [loading, setLoading] = useState(false);
-  const [isEditingRiskProfile, setIsEditingRiskProfile] = useState(false);
+  const [isEditingRiskProfile, setIsEditingRiskProfile] = useState(true);
   const [selectedRiskProfile, setSelectedRiskProfile] = useState<string>('');
 
   // Set initial selected risk profile based on current assessment
@@ -34,6 +34,8 @@ export const RiskPage = () => {
       } else if (category === 'Conservative') {
         setSelectedRiskProfile('conservative');
       }
+      // Only hide the risk profile selection if we have a valid assessment
+      setIsEditingRiskProfile(false);
     }
   }, [riskAssessment]);
 

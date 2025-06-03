@@ -1,0 +1,27 @@
+/* Collapsible card styles */
+.card-header {
+  cursor: pointer;
+  position: relative;
+}
+
+.card-content {
+  transition: max-height 0.3s ease-in-out, padding 0.3s ease-in-out, opacity 0.3s ease-in-out;
+  overflow: hidden;
+}
+
+.card-content.collapsed {
+  max-height: 0 !important;
+  padding-top: 0;
+  padding-bottom: 0;
+  opacity: 0.7;
+}
+
+.chevron-icon {
+  display: inline-flex;
+  margin-left: 8px;
+  transition: transform 0.3s ease;
+}
+
+.chevron-icon.rotate-180 {
+  transform: rotate(180deg);
+}

@@ -1174,6 +1174,73 @@ export const ProfilingPage = () => {
           </Card>
           )}
 
+          {/* Risk Profile Selection Section - Only shown when sections have been skipped */}
+          {hasSkippedSections && activeStep === 3 && (
+          <Card className="w-full mb-6">
+            <CardHeader>
+              <CardTitle>
+                Risk Profile Selection
+              </CardTitle>
+              <CardDescription>
+                Since some sections were skipped, please manually select your preferred risk profile
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <FormField
+                control={form.control}
+                name="manualRiskSelection"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex">
+                      Select Your Risk Profile: <span className="text-red-500 ml-1">*</span>
+                    </FormLabel>
+                    <Select 
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        handleRiskProfileSelection(value);
+                      }} 
+                      value={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Choose your risk tolerance level" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="conservative">
+                          <div className="flex flex-col items-start">
+                            <span className="font-semibold">Conservative</span>
+                            <span className="text-xs text-muted-foreground">Low risk, focus on capital preservation</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="moderate">
+                          <div className="flex flex-col items-start">
+                            <span className="font-semibold">Moderate</span>
+                            <span className="text-xs text-muted-foreground">Balanced risk, growth with stability</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="aggressive">
+                          <div className="flex flex-col items-start">
+                            <span className="font-semibold">Aggressive</span>
+                            <span className="text-xs text-muted-foreground">Higher risk, focused on growth</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="ultraAggressive">
+                          <div className="flex flex-col items-start">
+                            <span className="font-semibold">Ultra Aggressive</span>
+                            <span className="text-xs text-muted-foreground">Highest risk, maximum growth potential</span>
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </CardContent>
+          </Card>
+          )}
+
           {/* Risk Tolerance Section */}
           {((!hasSkippedSections && activeStep === 3) || (hasSkippedSections && activeStep === 4)) && (
           <Card className="w-full mb-6">

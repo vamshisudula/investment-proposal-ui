@@ -325,61 +325,6 @@ export const AllocationPage = () => {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle>Product Type Allocation</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {Object.entries(state.assetAllocation.productTypeAllocation).map(
-                ([assetClass, productTypes], assetIndex) => {
-                  const assetColor = assetIndex === 0 ? '#4f46e5' : '#10b981';
-                  const assetPercentage = state.assetAllocation.assetClassAllocation[assetClass] || 0;
-                  
-                  return (
-                    <div key={assetClass} className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-md font-semibold capitalize flex items-center">
-                          <span 
-                            className="inline-block w-3 h-3 mr-2 rounded-full" 
-                            style={{ backgroundColor: assetColor }}
-                          ></span>
-                          {assetClass} <span className="ml-2 text-sm font-normal text-muted-foreground">({assetPercentage}%)</span>
-                        </h4>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="h-8 w-8 p-0" 
-                          onClick={() => handleEditProductType(assetClass)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {Object.entries(productTypes).map(([productType, percentage], index) => {
-                          const amount = (state.assetAllocation.portfolioSize * percentage) / 100;
-                          
-                          return (
-                            <div key={productType} className="bg-muted/30 p-3 rounded-md">
-                              <div className="flex justify-between items-start">
-                                <span className="font-medium">{productType}</span>
-                                <span className="text-sm bg-primary/10 text-primary px-2 py-0.5 rounded">{percentage}%</span>
-                              </div>
-                              <div className="text-sm text-muted-foreground mt-1">
-                                {formatIndianCurrency(amount)}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                }
-              )}
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       <Card className="mb-6">

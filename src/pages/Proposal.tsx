@@ -13,8 +13,8 @@ import { formatIndianCurrency } from '@/lib/utils';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { MarketOutlookData, StockCategory } from '@/lib/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
@@ -830,38 +830,34 @@ export const ProposalPage = () => {
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
               <h4 className="font-medium">Template</h4>
-              <RadioGroup 
+              <Select 
                 value={proposalTemplate} 
                 onValueChange={(value) => setProposalTemplate(value as 'invest4edu' | 'investvalue')}
-                className="flex flex-col space-y-2"
               >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="invest4edu" id="invest4edu" />
-                  <Label htmlFor="invest4edu">Invest4edu</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="investvalue" id="investvalue" />
-                  <Label htmlFor="investvalue">InvestValue</Label>
-                </div>
-              </RadioGroup>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select template" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="invest4edu">Invest4edu</SelectItem>
+                  <SelectItem value="investvalue">InvestValue</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             
             <div className="space-y-2">
               <h4 className="font-medium">Proposal Type</h4>
-              <RadioGroup 
+              <Select 
                 value={proposalType} 
                 onValueChange={(value) => setProposalType(value as 'initial' | 'final')}
-                className="flex flex-col space-y-2"
               >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="initial" id="initial" />
-                  <Label htmlFor="initial">Initial Proposal (Blurred)</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="final" id="final" />
-                  <Label htmlFor="final">Final Proposal</Label>
-                </div>
-              </RadioGroup>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select proposal type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="initial">Initial Proposal (Blurred)</SelectItem>
+                  <SelectItem value="final">Final Proposal</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           

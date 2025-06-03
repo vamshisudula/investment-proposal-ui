@@ -1,4 +1,4 @@
-      import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAppContext } from '@/context/AppContext';
 import { getProductRecommendations, getStockCategories } from '@/lib/api';
 import { ProductRecommendations, ProductCategory, StockCategory } from '@/lib/types';
@@ -19,12 +19,20 @@ interface ProductRecommendation {
   minInvestment?: number;
   category?: string;
   dataSource?: string;
+  // Add fields for parsed return data
+  returnPercentage?: string;
+  returnPeriod?: string;
+  // Additional fields from external APIs
+  oneYearReturn?: number;
+  threeYearReturn?: number;
+  originalData?: any;
 }
 import { PageTitle } from '@/components/PageTitle';
 import { StepNavigation } from '@/components/StepNavigation';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { CollapsibleCard } from '@/components/ui/collapsible-card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatIndianCurrency } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -35,7 +43,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { Pencil, Plus, Trash2, Loader2, ChevronDown, AlertCircle, CheckCircle } from 'lucide-react';
+import { Pencil, Plus, Trash2, Loader2, ChevronDown, ChevronUp, AlertCircle, CheckCircle } from 'lucide-react';
 import { getProductsByCategory, getProductCategories, getAssetClassForCategory } from '@/lib/productUtils';
 
 export const ProductsPage = () => {
@@ -73,6 +81,9 @@ export const ProductsPage = () => {
   // State for create category dialog
   const [isCreateCategoryOpen, setIsCreateCategoryOpen] = useState(false);
   const [selectedCategoryOption, setSelectedCategoryOption] = useState<string>('');
+  
+  // State for tracking expanded/collapsed cards
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
   
   // State for stock inclusion preferences
   const [includeListedStocks, setIncludeListedStocks] = useState<boolean>(true);
@@ -563,9 +574,30 @@ export const ProductsPage = () => {
             
             validRecommendations.recommendations.equity.listedStocks = {
               products: [
-                { name: 'Large Cap Stock', description: 'Listed equity in large cap category', expectedReturn: '10-12%', risk: 'Moderate', category: 'Large Cap', minInvestment: 10000, dataSource: 'Fallback Data' },
-                { name: 'Mid Cap Stock', description: 'Listed equity in mid cap category', expectedReturn: '12-15%', risk: 'Moderate-High', category: 'Mid Cap', minInvestment: 10000, dataSource: 'Fallback Data' },
-                { name: 'Small Cap Stock', description: 'Listed equity in small cap category', expectedReturn: '15-18%', risk: 'High', category: 'Small Cap', minInvestment: 10000, dataSource: 'Fallback Data' }
+                { 
+                  name: 'Large Cap Stock', 
+                  description: 'Listed equity in large cap category', 
+                  expectedReturn: '10-12%', 
+                  risk: 'Moderate', 
+                  category: 'Large Cap', 
+                  minInvestment: 10000
+                },
+                { 
+                  name: 'Mid Cap Stock', 
+                  description: 'Listed equity in mid cap category', 
+                  expectedReturn: '12-15%', 
+                  risk: 'Moderate-High', 
+                  category: 'Mid Cap', 
+                  minInvestment: 10000
+                },
+                { 
+                  name: 'Small Cap Stock', 
+                  description: 'Listed equity in small cap category', 
+                  expectedReturn: '15-18%', 
+                  risk: 'High', 
+                  category: 'Small Cap', 
+                  minInvestment: 10000
+                }
               ],
               allocation: 40
             };
@@ -665,6 +697,67 @@ export const ProductsPage = () => {
       default:
         return <Loader2 className="h-4 w-4 animate-spin text-blue-500" />;
     }
+  };
+
+  // Helper function to parse expectedReturn into percentage and period
+  const parseExpectedReturn = (expectedReturn: string) => {
+    if (!expectedReturn || expectedReturn === 'Variable' || expectedReturn === 'N/A') {
+      return { percentage: 'Variable', period: '', shouldShowParsed: false };
+    }
+
+    // Check if this looks like meaningful API data (contains percentage indicators)
+    const hasPercentagePattern = expectedReturn.includes('%') || 
+                                /^\d+(\.\d+)?$/.test(expectedReturn.trim()) || // Just numbers (from API)
+                                expectedReturn.includes('p.a.') ||
+                                /^\d+-\d+%/.test(expectedReturn); // Range pattern like "12-14%"
+
+    // If it doesn't look like meaningful return data, don't parse it
+    if (!hasPercentagePattern) {
+      return { percentage: expectedReturn, period: '', shouldShowParsed: false };
+    }
+
+    // Parse meaningful return data
+    let percentage = expectedReturn;
+    let period = 'annually'; // default period
+
+    // Check for "p.a." (per annum)
+    if (expectedReturn.includes('p.a.')) {
+      percentage = expectedReturn.replace(' p.a.', '').trim();
+      period = 'per annum';
+    }
+    // Check for other period indicators
+    else if (expectedReturn.includes('annual')) {
+      percentage = expectedReturn.replace('annual', '').trim();
+      period = 'annually';
+    }
+    // Handle raw numbers from API (like "15" from OneYrReturn)
+    else if (/^\d+(\.\d+)?$/.test(expectedReturn.trim())) {
+      const numValue = parseFloat(expectedReturn.trim());
+      percentage = `${Math.round(numValue)}%`;
+      period = 'annually';
+    }
+    // If it just ends with %, assume annual
+    else if (expectedReturn.includes('%')) {
+      percentage = expectedReturn.trim();
+      period = 'annually';
+    }
+
+    return { percentage, period, shouldShowParsed: true };
+  };
+
+  // Enhanced function to check if product has API-sourced return data
+  const hasApiReturnData = (product: any) => {
+    // Check if product has additional API fields that indicate it came from external source
+    return (
+      product.oneYearReturn !== undefined ||
+      product.threeYearReturn !== undefined ||
+      product.dataSource === 'Listed Stocks API' ||
+      product.dataSource === 'Stock Categories API' ||
+      product.originalData !== undefined ||
+      product.nav !== undefined || // NAV indicates mutual fund API data
+      product.isin !== undefined || // ISIN indicates real stock data
+      (product.expectedReturn && /^\d+(\.\d+)?$/.test(product.expectedReturn.trim())) // Raw number from API
+    );
   };
 
   return (
@@ -1033,12 +1126,14 @@ export const ProductsPage = () => {
                   console.log(`Rendering ${productType} with ${data.products.length} products`);
                   
                   return (
-                    <Card key={productType} className="overflow-hidden">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="flex justify-between items-center">
-                          <span>{typeName}</span>
-                          <div className="flex items-center space-x-2">
-                            {productType === 'listedStocks' && (
+                    <CollapsibleCard
+                      key={productType}
+                      cardKey={`equity-${productType}`}
+                      title={typeName}
+                      description={description}
+                      actions={
+                        <div className="flex items-center space-x-2">
+                          {productType === 'listedStocks' && (
                               <div className="flex items-center mr-4">
                                 <Checkbox 
                                   id="include-listed-stocks" 
@@ -1073,35 +1168,71 @@ export const ProductsPage = () => {
                               Add from Catalog
                             </Button>
                           </div>
-                        </CardTitle>
-                        <p className="text-sm text-muted-foreground">{description}</p>
-                      </CardHeader>
-                      <CardContent>
+                      }
+                    >
                         <div className="space-y-4">
-                          {data.products.map((product: any, index: number) => (
-                            <div key={index} className="p-4 bg-muted/30 rounded-lg">
-                              <div className="flex justify-between items-start">
-                                <h4 className="font-medium">{product.name}</h4>
-                                <div className="flex items-center space-x-2">
-                                  <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">{product.expectedReturn}</span>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm" 
-                                    className="h-8 w-8 p-0 text-destructive" 
-                                    onClick={() => handleDeleteProduct(index, productType, 'equity')}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
+                          {data.products.map((product: any, index: number) => {
+                            const { percentage, period, shouldShowParsed } = parseExpectedReturn(product.expectedReturn);
+                            const isApiData = hasApiReturnData(product);
+                            
+                            // Debug logging to understand data source
+                            if (process.env.NODE_ENV === 'development') {
+                              console.log(`Product: ${product.name}`, {
+                                expectedReturn: product.expectedReturn,
+                                shouldShowParsed,
+                                isApiData,
+                                dataSource: product.dataSource,
+                                hasOneYearReturn: product.oneYearReturn !== undefined,
+                                hasOriginalData: product.originalData !== undefined
+                              });
+                            }
+                            
+                            return (
+                              <div key={index} className="p-4 bg-muted/30 rounded-lg">
+                                <div className="flex justify-between items-start">
+                                  <h4 className="font-medium">{product.name}</h4>
+                                  <div className="flex items-center space-x-2">
+                                    {shouldShowParsed && (
+                                      <div className="flex flex-col items-end gap-1">
+                                        <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded font-medium">
+                                          {percentage}
+                                        </span>
+                                        {period && (
+                                          <span className="text-xs text-muted-foreground">
+                                            {period}
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
+                                    {!shouldShowParsed && (
+                                      <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded font-medium">
+                                        {product.expectedReturn}
+                                      </span>
+                                    )}
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm" 
+                                      className="h-8 w-8 p-0 text-destructive" 
+                                      onClick={() => handleDeleteProduct(index, productType, 'equity')}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </div>
+                                <p className="text-sm mt-1">{product.description}</p>
+                                <div className="flex flex-wrap justify-between text-xs text-muted-foreground mt-3">
+                                  <div className="mr-4 mb-1">
+                                    <span className="font-medium">Risk:</span> {product.risk}
+                                  </div>
+                                  {product.lockInPeriod && (
+                                    <div className="mr-4 mb-1">
+                                      <span className="font-medium">Lock-in:</span> {product.lockInPeriod}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
-                              <p className="text-sm mt-1">{product.description}</p>
-                              <div className="flex flex-wrap justify-between text-xs text-muted-foreground mt-3">
-                                <div className="mr-4 mb-1">
-                                  <span className="font-medium">Risk:</span> {product.risk}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                           {data.products.length === 0 && (
                             <div className="text-center py-6 text-muted-foreground">
                               <p>No products in this category.</p>
@@ -1123,8 +1254,7 @@ export const ProductsPage = () => {
                             Target Allocation: {formatIndianCurrency(data.amount)}
                           </div>
                         )}
-                      </CardContent>
-                    </Card>
+                    </CollapsibleCard>
                   );
                 })
               }
@@ -1171,49 +1301,87 @@ export const ProductsPage = () => {
                   console.log(`Rendering debt ${productType} with ${data.products.length} products`);
                   
                   return (
-                    <Card key={productType} className="overflow-hidden">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="flex justify-between items-center">
-                          <span>{typeName}</span>
-                          <div className="flex items-center space-x-2">
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => handleOpenCatalogPopup(productType, 'debt')}
-                            >
-                              <Plus className="h-4 w-4 mr-2" />
-                              Add from Catalog
-                            </Button>
-                          </div>
-                        </CardTitle>
-                        <p className="text-sm text-muted-foreground">{description}</p>
-                      </CardHeader>
-                      <CardContent>
+                    <CollapsibleCard
+                      key={productType}
+                      cardKey={`debt-${productType}`}
+                      title={typeName}
+                      description={description}
+                      actions={
+                        <div className="flex items-center space-x-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleOpenCatalogPopup(productType, 'debt')}
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add from Catalog
+                          </Button>
+                        </div>
+                      }
+                    >
                         <div className="space-y-4">
-                          {data.products.map((product: any, index: number) => (
-                            <div key={index} className="p-4 bg-muted/30 rounded-lg">
-                              <div className="flex justify-between items-start">
-                                <h4 className="font-medium">{product.name}</h4>
-                                <div className="flex items-center space-x-2">
-                                  <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">{product.expectedReturn}</span>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm" 
-                                    className="h-8 w-8 p-0 text-destructive" 
-                                    onClick={() => handleDeleteProduct(index, productType, 'debt')}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
+                          {data.products.map((product: any, index: number) => {
+                            const { percentage, period, shouldShowParsed } = parseExpectedReturn(product.expectedReturn);
+                            const isApiData = hasApiReturnData(product);
+                            
+                            // Debug logging to understand data source
+                            if (process.env.NODE_ENV === 'development') {
+                              console.log(`Product: ${product.name}`, {
+                                expectedReturn: product.expectedReturn,
+                                shouldShowParsed,
+                                isApiData,
+                                dataSource: product.dataSource,
+                                hasOneYearReturn: product.oneYearReturn !== undefined,
+                                hasOriginalData: product.originalData !== undefined
+                              });
+                            }
+                            
+                            return (
+                              <div key={index} className="p-4 bg-muted/30 rounded-lg">
+                                <div className="flex justify-between items-start">
+                                  <h4 className="font-medium">{product.name}</h4>
+                                  <div className="flex items-center space-x-2">
+                                    {shouldShowParsed && (
+                                      <div className="flex flex-col items-end gap-1">
+                                        <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded font-medium">
+                                          {percentage}
+                                        </span>
+                                        {period && (
+                                          <span className="text-xs text-muted-foreground">
+                                            {period}
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
+                                    {!shouldShowParsed && (
+                                      <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded font-medium">
+                                        {product.expectedReturn}
+                                      </span>
+                                    )}
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm" 
+                                      className="h-8 w-8 p-0 text-destructive" 
+                                      onClick={() => handleDeleteProduct(index, productType, 'debt')}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </div>
+                                <p className="text-sm mt-1">{product.description}</p>
+                                <div className="flex flex-wrap justify-between text-xs text-muted-foreground mt-3">
+                                  <div className="mr-4 mb-1">
+                                    <span className="font-medium">Risk:</span> {product.risk}
+                                  </div>
+                                  {product.lockInPeriod && (
+                                    <div className="mr-4 mb-1">
+                                      <span className="font-medium">Lock-in:</span> {product.lockInPeriod}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
-                              <p className="text-sm mt-1">{product.description}</p>
-                              <div className="flex flex-wrap justify-between text-xs text-muted-foreground mt-3">
-                                <div className="mr-4 mb-1">
-                                  <span className="font-medium">Risk:</span> {product.risk}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                           {data.products.length === 0 && (
                             <div className="text-center py-6 text-muted-foreground">
                               <p>No products in this category.</p>
@@ -1235,8 +1403,7 @@ export const ProductsPage = () => {
                             Target Allocation: {formatIndianCurrency(data.amount)}
                           </div>
                         )}
-                      </CardContent>
-                    </Card>
+                    </CollapsibleCard>
                   );
                 })
               }
@@ -1315,3 +1482,4 @@ export const ProductsPage = () => {
     </div>
   );
 };
+
